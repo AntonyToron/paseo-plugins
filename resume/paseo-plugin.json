@@ -1,0 +1,9 @@
+{
+  "id": "paseo-resume",
+  "name": "Resume interrupted chats",
+  "description": "After a restart or crash, lists the Claude chats that were cut off mid-turn and continues them in one press.",
+  "media": [],
+  "requirements": {
+    "paseo": ">=0.11.2"
+  }
+}
