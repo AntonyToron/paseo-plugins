@@ -18,6 +18,7 @@ A small `NORMAL` badge in the bottom-right corner shows when keys are commands, 
 | `gg` `G` | Top or bottom of the chat |
 | `gt` `gT`, `{n}gt` | Next or previous tab, or tab n |
 | `Ctrl-j` `Ctrl-k` (any mode), `]w` `[w` | Next or previous workspace, past Paseo's first-9 limit |
+| `Ctrl-h` `Ctrl-l` (any mode except a terminal) | Previous or next tab |
 | `Ctrl-w h/j/k/l` | Move to the pane in that direction |
 | `Ctrl-w v` `Ctrl-w s` | Split right or down |
 | `Ctrl-w q` `Ctrl-w c` | Close the pane |
@@ -40,7 +41,7 @@ Plugins only run when `"pluginsEnabled": true` is set in `~/.paseo/config.json` 
 
 ### Esc versus Ctrl-c
 
-Paseo interrupts a running agent on `Esc`, and its handler sees the key before any plugin. Use `Ctrl-c` to leave the message box while an agent is working, or move "Interrupt agent" to another key in Settings → Keyboard shortcuts.
+`Esc` in the message box still interrupts a running agent, as it does without the plugin, then enters normal mode. Use `Ctrl-c` to leave the message box without interrupting, or move "Interrupt agent" to another key in Settings → Keyboard shortcuts.
 
 ### Ctrl-j and Ctrl-k
 

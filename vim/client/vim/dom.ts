@@ -3,7 +3,7 @@ import {
   describePending,
   EMPTY_PENDING,
   feed,
-  globalCommand,
+  globalBinding,
   paseoCombo,
   type Pending,
   toToken,
@@ -216,20 +216,31 @@ export function startVim(): () => void {
       return;
     }
 
-    const global = globalCommand(token);
-    if (global && !visibleMatch(SELECTORS.overlay) && !paseoBindsToken(token)) {
+    const global = globalBinding(token);
+    const inTerminal = event.target instanceof Element && event.target.closest(SELECTORS.terminal) !== null;
+    if (
+      global &&
+      (global.inTerminal || !inTerminal) &&
+      !visibleMatch(SELECTORS.overlay) &&
+      !paseoBindsToken(token)
+    ) {
       event.preventDefault();
       event.stopPropagation();
       resetPending();
-      run(global);
+      run(global.command);
       render();
       return;
     }
 
     // Like vim, Esc and Ctrl-c leave insert mode even when they also close a completion menu.
-    // Ctrl-c is the one that leaves a running agent alone: Paseo interrupts on Esc.
-    if (context === "insert" && (token === "<Esc>" || token === "<C-c>")) {
-      if (token === "<C-c>") event.preventDefault();
+    // Paseo also interrupts a running agent on Esc, but only while the composer is still
+    // focused, so blur after its handler has run. Ctrl-c leaves the agent alone.
+    if (context === "insert" && token === "<Esc>") {
+      setTimeout(enterNormal, 0);
+      return;
+    }
+    if (context === "insert" && token === "<C-c>") {
+      event.preventDefault();
       enterNormal();
       return;
     }

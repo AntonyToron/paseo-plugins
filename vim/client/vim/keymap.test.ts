@@ -3,7 +3,7 @@ import {
   EMPTY_PENDING,
   feed,
   type FeedResult,
-  globalCommand,
+  globalBinding,
   type Pending,
   paseoCombo,
   toToken,
@@ -69,10 +69,21 @@ describe("feed", () => {
 });
 
 describe("global bindings", () => {
-  it("maps Ctrl-j and Ctrl-k to workspace movement", () => {
-    expect(globalCommand("<C-j>")).toEqual({ kind: "workspace", sign: 1 });
-    expect(globalCommand("<C-k>")).toEqual({ kind: "workspace", sign: -1 });
-    expect(globalCommand("j")).toBeNull();
+  it("maps Ctrl-j and Ctrl-k to workspace movement, terminals included", () => {
+    expect(globalBinding("<C-j>")).toEqual({ command: { kind: "workspace", sign: 1 }, inTerminal: true });
+    expect(globalBinding("<C-k>")).toEqual({ command: { kind: "workspace", sign: -1 }, inTerminal: true });
+    expect(globalBinding("j")).toBeNull();
+  });
+
+  it("maps Ctrl-h and Ctrl-l to tabs, leaving terminals their backspace and clear", () => {
+    expect(globalBinding("<C-h>")).toEqual({
+      command: { kind: "tab", sign: -1, times: 1 },
+      inTerminal: false,
+    });
+    expect(globalBinding("<C-l>")).toEqual({
+      command: { kind: "tab", sign: 1, times: 1 },
+      inTerminal: false,
+    });
   });
 
   it("spells ctrl tokens the way Paseo stores overrides", () => {
