@@ -1,0 +1,9 @@
+{
+  "id": "paseo-chat-search",
+  "name": "Search chats",
+  "description": "Find a past chat by what was said in it, across every workspace, archived chats included.",
+  "media": [],
+  "requirements": {
+    "paseo": ">=0.11.2"
+  }
+}
