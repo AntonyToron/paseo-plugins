@@ -72,13 +72,21 @@ const BINDINGS: Record<string, Binding> = {
 
 const SEQUENCES = Object.keys(BINDINGS);
 
-// Work in every mode, like a tmux binding without a prefix.
-const GLOBAL_BINDINGS: Record<string, Command> = {
-  "<C-j>": { kind: "workspace", sign: 1 },
-  "<C-k>": { kind: "workspace", sign: -1 },
+export interface GlobalBinding {
+  command: Command;
+  inTerminal: boolean;
+}
+
+// Work in every mode, like a tmux binding without a prefix. The tab keys skip
+// terminals, where Ctrl-h is backspace and Ctrl-l clears the screen.
+const GLOBAL_BINDINGS: Record<string, GlobalBinding> = {
+  "<C-j>": { command: { kind: "workspace", sign: 1 }, inTerminal: true },
+  "<C-k>": { command: { kind: "workspace", sign: -1 }, inTerminal: true },
+  "<C-h>": { command: { kind: "tab", sign: -1, times: 1 }, inTerminal: false },
+  "<C-l>": { command: { kind: "tab", sign: 1, times: 1 }, inTerminal: false },
 };
 
-export function globalCommand(token: string): Command | null {
+export function globalBinding(token: string): GlobalBinding | null {
   return GLOBAL_BINDINGS[token] ?? null;
 }
 

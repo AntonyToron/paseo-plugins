@@ -1,6 +1,6 @@
 Adds a vim-style normal mode to the Paseo desktop app on macOS. Press Ctrl-c or Esc in the message box to leave it, then drive Paseo from the keyboard; press `i` to type again. A small NORMAL badge in the bottom-right corner shows when keys are commands, along with any count or sequence in progress.
 
-Paseo interrupts a running agent on Esc before any plugin sees the key, so use Ctrl-c to leave the message box while an agent is working.
+Esc in the message box still interrupts a running agent, as it does without the plugin. Use Ctrl-c to leave the message box without interrupting.
 
 ## Keys
 
@@ -12,6 +12,7 @@ Paseo interrupts a running agent on Esc before any plugin sees the key, so use C
 | `gg` `G` | Jump to the top or bottom of the chat |
 | `gt` `gT`, `{n}gt` | Next or previous tab, or tab n |
 | `Ctrl-j` `Ctrl-k` (any mode), `]w` `[w` | Next or previous workspace in the sidebar, past the first 9 |
+| `Ctrl-h` `Ctrl-l` (any mode except a terminal) | Previous or next tab |
 | `Ctrl-w h/j/k/l` | Move to the pane in that direction |
 | `Ctrl-w v` `Ctrl-w s` | Split right or down |
 | `Ctrl-w q` `Ctrl-w c` | Close the pane |
