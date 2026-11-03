@@ -15,6 +15,7 @@
     "mcp-reconnect",
     "resume",
     "dash",
+    "inbox",
     "chat-search",
     "ask",
     "slack-thread"

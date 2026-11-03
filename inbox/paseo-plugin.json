@@ -1,0 +1,9 @@
+{
+  "id": "paseo-inbox",
+  "name": "PR inbox",
+  "description": "The pull requests that need you: urgent and security reviews first, then your review requests and your own PRs with feedback you haven't answered.",
+  "media": [],
+  "requirements": {
+    "paseo": ">=0.11.2"
+  }
+}
