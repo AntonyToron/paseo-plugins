@@ -1,0 +1,9 @@
+{
+  "id": "paseo-ask-tab",
+  "name": "Ask another chat",
+  "description": "/ask sends a question to another chat and brings its answer back to the one you asked from.",
+  "media": [],
+  "requirements": {
+    "paseo": ">=0.11.2"
+  }
+}
