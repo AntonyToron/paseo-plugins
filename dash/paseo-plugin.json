@@ -1,0 +1,9 @@
+{
+  "id": "paseo-dash",
+  "name": "Dash",
+  "description": "Every open workspace in two lines, grouped by what it needs from you. Review chats flag new commits and comments on their PR since they last looked.",
+  "media": [],
+  "requirements": {
+    "paseo": ">=0.11.2"
+  }
+}
