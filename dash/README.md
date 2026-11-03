@@ -8,6 +8,8 @@ Each workspace is tied to the PR it's about: the one its title names (Paseo titl
 
 A PR lands in **Re-look** when it has commits or comments from someone else since the chat last finished a turn. **Re-review** asks that same chat to review just what changed, so it keeps its context. Merged and closed PRs, and finished chats you've seen, go to **Done**, where **Archive all** clears them. Worktrees with uncommitted or unpushed work are kept back and named.
 
+Someone else's draft PR isn't asking for review yet, so its workspace stays off the dash until the PR is marked ready, and then anything pushed meanwhile shows as new. It still appears while its chat needs you, is working, or has results you haven't seen. Your own drafts always show.
+
 PR details come from `gh` on the machine running Paseo, so it must be installed and signed in there.
 
 ## Install

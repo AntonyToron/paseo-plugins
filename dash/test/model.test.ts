@@ -23,20 +23,43 @@ describe("classify", () => {
   });
 
   it("waits on the author when nothing changed", () => {
-    expect(classify("done", pr())).toEqual({ group: "waiting", detail: "#8007 · waiting on author" });
+    expect(classify("done", pr())).toEqual({
+      group: "waiting",
+      detail: "#8007 · waiting on author",
+    });
   });
 
   it("shows your own PR's blocker instead", () => {
-    expect(classify("done", pr({ mine: true, checks: "failed" })).detail).toBe("#8007 · checks failing");
+    expect(classify("done", pr({ mine: true, checks: "failed" }))?.detail).toBe(
+      "#8007 · checks failing",
+    );
+  });
+
+  it("hides someone else's draft, even when they push to it, until it's ready", () => {
+    expect(classify("done", pr({ isDraft: true }))).toBeNull();
+    expect(classify("done", pr({ isDraft: true, newCommits: 4 }))).toBeNull();
+    expect(classify("done", pr({ newCommits: 4 }))?.group).toBe("relook");
+  });
+
+  it("keeps a draft visible while its chat needs you, works, or has unread results, and keeps your own drafts", () => {
+    expect(classify("running", pr({ isDraft: true }))?.group).toBe("working");
+    expect(classify("attention", pr({ isDraft: true }))?.group).toBe("unread");
+    expect(classify("done", pr({ isDraft: true, mine: true }))).toEqual({
+      group: "waiting",
+      detail: "#8007 · draft",
+    });
   });
 
   it("marks merged and closed PRs done, even with activity after the last look", () => {
-    expect(classify("done", pr({ state: "MERGED", newCommits: 2 }))).toEqual({ group: "done", detail: "#8007 · merged" });
+    expect(classify("done", pr({ state: "MERGED", newCommits: 2 }))).toEqual({
+      group: "done",
+      detail: "#8007 · merged",
+    });
   });
 
   it("lets live chat state win over PR state", () => {
-    expect(classify("running", pr({ newCommits: 2 })).group).toBe("working");
-    expect(classify("needs_input", pr()).group).toBe("needs-you");
+    expect(classify("running", pr({ newCommits: 2 }))?.group).toBe("working");
+    expect(classify("needs_input", pr())?.group).toBe("needs-you");
   });
 
   it("files a finished chat without a PR under Unread until seen, then Done", () => {

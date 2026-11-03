@@ -15,7 +15,9 @@ const TITLE_PR = /\bPR\s*#?(\d{2,})\b/i;
 let scans: Promise<Record<string, ChatScan>> | null = null;
 
 async function allPages<Item>(
-  fetch: (cursor: string | undefined) => Promise<{ entries: Item[]; pageInfo: { hasMore: boolean; nextCursor: string | null } }>,
+  fetch: (
+    cursor: string | undefined,
+  ) => Promise<{ entries: Item[]; pageInfo: { hasMore: boolean; nextCursor: string | null } }>,
 ): Promise<Item[]> {
   const items: Item[] = [];
   let cursor: string | undefined;
@@ -70,15 +72,25 @@ interface PullRequestSource {
  * workspace is for. Otherwise the chats' own PRs come next, since a review workspace on a shared
  * checkout reports the checkout branch's PR, and a worktree's branch PR is the last resort.
  */
-function pullRequestSource(workspace: Workspace, agents: readonly Agent[], chatScans: Map<string, ChatScan>): PullRequestSource | null {
+function pullRequestSource(
+  workspace: Workspace,
+  agents: readonly Agent[],
+  chatScans: Map<string, ChatScan>,
+): PullRequestSource | null {
   const workspaceDir = workspace.workspaceDirectory ?? workspace.projectRootPath;
   const sightings = agents
-    .map((agent) => ({ agent, scan: chatScans.get(agent.id), sighting: chatScans.get(agent.id)?.pullRequest ?? null }))
+    .map((agent) => ({
+      agent,
+      scan: chatScans.get(agent.id),
+      sighting: chatScans.get(agent.id)?.pullRequest ?? null,
+    }))
     .filter((entry) => entry.sighting)
     .sort((a, b) => (b.sighting?.at ?? "").localeCompare(a.sighting?.at ?? ""));
   const fromAgent = (agent: Agent | undefined, ref: PullRequestRef): PullRequestSource => ({
     ref,
-    cwds: [agent?.cwd, workspaceDir, workspace.projectRootPath].filter((cwd): cwd is string => Boolean(cwd)),
+    cwds: [agent?.cwd, workspaceDir, workspace.projectRootPath].filter((cwd): cwd is string =>
+      Boolean(cwd),
+    ),
     agentId: agent?.id ?? null,
     since: agent ? (chatScans.get(agent.id)?.lastFinishedAt ?? null) : null,
   });
@@ -88,12 +100,16 @@ function pullRequestSource(workspace: Workspace, agents: readonly Agent[], chatS
     const number = Number(titled[1]);
     // A chat that linked the same PR also knows its repo, which a bare title number doesn't.
     const match = sightings.find((entry) => entry.sighting?.ref.number === number);
-    return fromAgent(match?.agent ?? sightings[0]?.agent ?? agents[0], match?.sighting?.ref ?? { repo: null, number });
+    return fromAgent(
+      match?.agent ?? sightings[0]?.agent ?? agents[0],
+      match?.sighting?.ref ?? { repo: null, number },
+    );
   }
   const latest = sightings[0];
   if (latest?.sighting) return fromAgent(latest.agent, latest.sighting.ref);
   const branchNumber = workspace.githubRuntime?.pullRequest?.number;
-  if (workspace.workspaceKind === "worktree" && branchNumber) return fromAgent(agents[0], { repo: null, number: branchNumber });
+  if (workspace.workspaceKind === "worktree" && branchNumber)
+    return fromAgent(agents[0], { repo: null, number: branchNumber });
   return null;
 }
 
@@ -111,7 +127,11 @@ async function resolveRepo(source: PullRequestSource): Promise<string> {
 }
 
 /** Runs `task` over `items` with at most `limit` in flight, so a cold start doesn't spawn 70 gh calls. */
-async function mapLimited<Item, Result>(items: readonly Item[], limit: number, task: (item: Item) => Promise<Result>) {
+async function mapLimited<Item, Result>(
+  items: readonly Item[],
+  limit: number,
+  task: (item: Item) => Promise<Result>,
+) {
   const results: Result[] = new Array(items.length);
   let next = 0;
   const worker = async () => {
@@ -125,7 +145,9 @@ async function mapLimited<Item, Result>(items: readonly Item[], limit: number, t
 }
 
 function latestAgentActivity(agents: readonly Agent[]): string | null {
-  const times = agents.flatMap((agent) => [agent.updatedAt, agent.lastUserMessageAt]).filter((time): time is string => Boolean(time));
+  const times = agents
+    .flatMap((agent) => [agent.updatedAt, agent.lastUserMessageAt])
+    .filter((time): time is string => Boolean(time));
   return times.sort().at(-1) ?? null;
 }
 
@@ -139,7 +161,11 @@ function archiveRisks(workspace: Workspace): string[] {
   return risks;
 }
 
-async function buildRow(workspace: Workspace, agents: Agent[], chatScans: Map<string, ChatScan>): Promise<DashRow> {
+async function buildRow(
+  workspace: Workspace,
+  agents: Agent[],
+  chatScans: Map<string, ChatScan>,
+): Promise<DashRow | null> {
   const source = pullRequestSource(workspace, agents, chatScans);
   let pullRequest: PullRequestSummary | null = null;
   let pullRequestError: string | null = null;
@@ -148,17 +174,23 @@ async function buildRow(workspace: Workspace, agents: Agent[], chatScans: Map<st
       const repo = await resolveRepo(source);
       pullRequest = await summarizePullRequest(repo, source.ref.number, source.since);
     } catch (error) {
-      pullRequestError = error instanceof Error ? error.message.split("\n")[0] ?? "Couldn't load the PR" : String(error);
+      pullRequestError =
+        error instanceof Error
+          ? (error.message.split("\n")[0] ?? "Couldn't load the PR")
+          : String(error);
     }
   }
-  const { group, detail } = classify(workspace.status, pullRequest);
+  const placed = classify(workspace.status, pullRequest);
+  if (!placed) return null;
+  const { group, detail } = placed;
   return {
     workspaceId: workspace.id,
     agentId: source?.agentId ?? agents[0]?.id ?? null,
     title: workspace.title ?? workspace.name,
     activityAt: workspace.activityAt ?? latestAgentActivity(agents),
     group,
-    detail: pullRequestError && source ? `#${source.ref.number} · couldn't load from GitHub` : detail,
+    detail:
+      pullRequestError && source ? `#${source.ref.number} · couldn't load from GitHub` : detail,
     pullRequest,
     pullRequestError,
     archiveRisks: archiveRisks(workspace),
@@ -182,5 +214,5 @@ export async function getSnapshot(_input: unknown, { paseo }: PluginHandlerConte
     GH_CONCURRENCY,
     (workspace) => buildRow(workspace, byWorkspace.get(workspace.id) ?? [], chatScans),
   );
-  return { rows };
+  return { rows: rows.filter((row): row is DashRow => row !== null) };
 }
