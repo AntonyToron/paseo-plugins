@@ -19,7 +19,7 @@ This is the same as "Reload agent" in Paseo's tab menu and Command Center, behin
 Requires the Paseo desktop app on macOS, version 0.11.2 or later. Plugins are trusted, unsandboxed code, so read the source before installing.
 
 ```bash
-paseo plugin install git:AntonyToron/paseo-mcp-reconnect
+paseo plugin install git:AntonyToron/paseo-plugins:mcp-reconnect
 ```
 
 Plugins only run when `"pluginsEnabled": true` is set in `~/.paseo/config.json` (then `paseo reload`). Press `Cmd+R` in the Paseo window after installing.

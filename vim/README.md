@@ -33,7 +33,7 @@ It also reopens the right-hand sidebar whenever you navigate to a workspace wher
 Requires the Paseo desktop app on macOS, version 0.11.2 or later. Plugins are trusted, unsandboxed code, so read the source before installing.
 
 ```bash
-paseo plugin install git:AntonyToron/paseo-vim
+paseo plugin install git:AntonyToron/paseo-plugins:vim
 ```
 
 Plugins only run when `"pluginsEnabled": true` is set in `~/.paseo/config.json` (then `paseo reload`). Press `Cmd+R` in the Paseo window after installing.
@@ -78,4 +78,4 @@ The key-sequence engine (`client/vim/keymap.ts`) and shortcut parsing (`client/v
 
 ## License
 
-MIT
+MIT, see the repo's [LICENSE](../LICENSE).

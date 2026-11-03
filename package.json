@@ -1,0 +1,26 @@
+{
+  "name": "paseo-plugins",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Plugins for the Paseo desktop app.",
+  "license": "MIT",
+  "author": "Antony Toron",
+  "homepage": "https://github.com/AntonyToron/paseo-plugins",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AntonyToron/paseo-plugins.git"
+  },
+  "workspaces": [
+    "vim",
+    "mcp-reconnect",
+    "resume",
+    "dash",
+    "chat-search",
+    "ask",
+    "slack-thread"
+  ],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces",
+    "test": "npm test --workspaces --if-present"
+  }
+}
