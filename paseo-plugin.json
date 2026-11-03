@@ -1,0 +1,9 @@
+{
+  "id": "mcp-reconnect",
+  "name": "MCP reconnect",
+  "description": "Reconnect a Claude agent's MCP servers with /mcp-reconnect, keeping the conversation.",
+  "media": [],
+  "requirements": {
+    "paseo": ">=0.11.2"
+  }
+}
