@@ -1,0 +1,9 @@
+{
+  "id": "paseo-slack-thread",
+  "name": "Slack thread pill",
+  "description": "Chats started from a Slack thread get a pill to open the thread or ask the chat to check for new replies.",
+  "media": [],
+  "requirements": {
+    "paseo": ">=0.11.2"
+  }
+}
