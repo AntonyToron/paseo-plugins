@@ -1,0 +1,8 @@
+{
+  "id": "paseo-vim",
+  "name": "Vim keys",
+  "description": "Normal mode for Paseo: scroll the chat, switch tabs and move between panes from the keyboard.",
+  "requirements": {
+    "paseo": ">=0.11.2"
+  }
+}
