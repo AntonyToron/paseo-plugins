@@ -54,10 +54,12 @@ export const getReviewFiles = defineRpc({
   }),
 });
 
-export const getFileDiff = defineRpc({
-  name: "review.diff",
-  input: prRef.extend({ path: z.string() }),
-  output: z.object({ diff: z.string(), truncated: z.boolean() }),
+export const getFileDiffs = defineRpc({
+  name: "review.diffs",
+  input: prRef.extend({ paths: z.array(z.string()).min(1) }),
+  output: z.object({
+    diffs: z.record(z.string(), z.object({ diff: z.string(), truncated: z.boolean() })),
+  }),
 });
 
 export const setFilesViewed = defineRpc({

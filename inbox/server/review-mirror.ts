@@ -100,20 +100,43 @@ export function fetchPullRequest(
   return pending;
 }
 
-/** The file's diff against the merge base, which is what GitHub's Files tab shows. */
-export async function fileDiff(
+/** Which file a `diff --git` section is about: the new path, or the old one for a deletion. */
+export function sectionPath(section: string): string | null {
+  const added = /^\+\+\+ b\/(.+)$/m.exec(section)?.[1];
+  if (added) return added;
+  const removed = /^--- a\/(.+)$/m.exec(section)?.[1];
+  if (removed && /^\+\+\+ \/dev\/null$/m.test(section)) return removed;
+  // Binary files and pure renames have no ---/+++ lines; their header still names the new path.
+  return /^diff --git a\/.+? b\/(.+)$/m.exec(section)?.[1] ?? null;
+}
+
+/**
+ * Several files' diffs against the merge base, which is what GitHub's Files tab shows, from one
+ * git call. A file over the size cap is cut short and flagged rather than dropped.
+ */
+export async function fileDiffs(
   pr: FetchedPullRequest,
-  path: string,
-): Promise<{ diff: string; truncated: boolean }> {
-  const paths = [path, ...(pr.renames.has(path) ? [pr.renames.get(path) as string] : [])];
-  const diff = await git(
+  paths: readonly string[],
+): Promise<Record<string, { diff: string; truncated: boolean }>> {
+  const withRenames = paths.flatMap((path) => [
+    path,
+    ...(pr.renames.has(path) ? [pr.renames.get(path) as string] : []),
+  ]);
+  const output = await git(
     pr.gitDir,
-    ["diff", "--no-color", "--no-ext-diff", "-M", `${pr.base}...${pr.head}`, "--", ...paths],
-    MAX_DIFF_BYTES * 2,
+    ["diff", "--no-color", "--no-ext-diff", "-M", `${pr.base}...${pr.head}`, "--", ...withRenames],
+    MAX_DIFF_BYTES * 16,
   );
-  return diff.length > MAX_DIFF_BYTES
-    ? { diff: diff.slice(0, MAX_DIFF_BYTES), truncated: true }
-    : { diff, truncated: false };
+  const result: Record<string, { diff: string; truncated: boolean }> = {};
+  for (const section of output.split(/^(?=diff --git )/m)) {
+    const path = sectionPath(section);
+    if (!path || !paths.includes(path)) continue;
+    result[path] =
+      section.length > MAX_DIFF_BYTES
+        ? { diff: section.slice(0, MAX_DIFF_BYTES), truncated: true }
+        : { diff: section, truncated: false };
+  }
+  return result;
 }
 
 export async function repoForCwd(cwd: string): Promise<string> {

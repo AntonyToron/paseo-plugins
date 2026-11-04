@@ -1,12 +1,12 @@
 import type { RpcInput } from "@getpaseo/plugin";
 import type {
-  getFileDiff,
+  getFileDiffs,
   getReviewFiles,
   resolvePullRequest,
   setFilesViewed,
 } from "../shared/review";
 import { markViewed, pullRequestFiles } from "./review-github";
-import { fetchPullRequest, fileDiff, repoForCwd } from "./review-mirror";
+import { fetchPullRequest, fileDiffs, repoForCwd } from "./review-mirror";
 
 const PR_URL = /github\.com\/([\w.-]+\/[\w.-]+)\/pull\/(\d+)/;
 
@@ -31,9 +31,11 @@ export async function listReviewFiles({ repo, number }: RpcInput<typeof getRevie
   return { title: pr.title, url: pr.url, author: pr.author, headSha: pr.headSha, files: pr.files };
 }
 
-export async function reviewFileDiff({ repo, number, path }: RpcInput<typeof getFileDiff>) {
+export async function reviewFileDiffs({ repo, number, paths }: RpcInput<typeof getFileDiffs>) {
   const pr = await current(repo, number);
-  return fileDiff(await fetchPullRequest(repo, number, pr.baseRef, pr.headSha), path);
+  return {
+    diffs: await fileDiffs(await fetchPullRequest(repo, number, pr.baseRef, pr.headSha), paths),
+  };
 }
 
 export async function setReviewFilesViewed({

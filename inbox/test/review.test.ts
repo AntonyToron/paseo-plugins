@@ -1,5 +1,29 @@
 import { describe, expect, it } from "vitest";
+import { sectionPath } from "../server/review-mirror";
 import { fileGroup, parseDiff } from "../shared/review";
+
+describe("sectionPath", () => {
+  it("names a section by its new path, or the old one for a deletion", () => {
+    expect(
+      sectionPath(
+        "diff --git a/src/a.ts b/src/a.ts\n--- a/src/a.ts\n+++ b/src/a.ts\n@@ -1 +1 @@\n",
+      ),
+    ).toBe("src/a.ts");
+    expect(
+      sectionPath(
+        "diff --git a/old.ts b/new.ts\nsimilarity index 100%\nrename from old.ts\nrename to new.ts\n",
+      ),
+    ).toBe("new.ts");
+    expect(
+      sectionPath(
+        "diff --git a/gone.ts b/gone.ts\ndeleted file mode 100644\n--- a/gone.ts\n+++ /dev/null\n",
+      ),
+    ).toBe("gone.ts");
+    expect(
+      sectionPath("diff --git a/x.png b/x.png\nBinary files a/x.png and b/x.png differ\n"),
+    ).toBe("x.png");
+  });
+});
 
 describe("fileGroup", () => {
   it("sorts files by path alone", () => {

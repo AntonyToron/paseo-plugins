@@ -11,11 +11,11 @@ Priority comes from the repo's **High / Medium / Low Priority** labels. Everythi
 
 ## Reviewing files
 
-**Files** on any inbox row, or `/review-files <PR URL or number>` in a chat, opens a PR's changed files next to their diffs.
+**Files** on any inbox row, or `/review-files <PR URL or number>` in a chat, opens a PR's diff the way GitHub's Files changed tab shows it: every file in one scroll, in red and green, with a file tree on the left that jumps to a file.
 
-- Files are grouped by path: **Source** open, with **Config and docs**, **Tests**, and **Generated and lockfiles** folded away. Each group shows how much you've viewed and how many lines it holds, and **Mark viewed** clears a whole group at once.
-- The checkboxes are GitHub's own **Viewed** marks, so ticking a file here ticks it on GitHub's Files tab and the other way round. A file that changed after you viewed it shows **CHANGED** and comes back unviewed, just as on GitHub. **Hide viewed files** keeps the list to what's left.
-- Diffs come from a local copy of the repo that the plugin keeps to itself (bare, with file contents fetched only when a diff needs them), so big files open instantly and your own checkouts are never touched. **Viewed, next** ticks the file and moves to the next unviewed one.
+- Source and config files are open. **Tests** and **Generated and lockfiles** start folded, since they're most of a big PR's lines; **Show** opens them.
+- Each file's **Viewed** tick is GitHub's own, so it matches the Files tab both ways. Ticking a file folds it, as on GitHub, and viewed files start folded and greyed out in the tree. A file that changed after you viewed it says so and opens again. **Mark all viewed** clears a group.
+- Diffs come from a local copy of the repo that the plugin keeps to itself (bare, with file contents fetched only when a diff needs them), so big files open instantly and your own checkouts are never touched.
 
 ## Claude's check
 
