@@ -1,5 +1,5 @@
 import type { PluginTheme } from "@getpaseo/plugin";
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { ScrollView, Text, View } from "react-native";
 import { folderRows } from "../shared/file-tree";
@@ -138,8 +138,9 @@ function FileRow({
  * The PR's files by folder, the way GitHub's tree shows them, or in Claude's reading order once
  * it has sorted them. Folders show how many files they hold, so crowded ones stand out. Like the
  * diff, the tree leaves out folded sections (tests, generated files) until asked for them.
+ * Memoized: it has hundreds of rows and the screen re-renders often for things it doesn't show.
  */
-export function FileTree({
+export const FileTree = memo(function FileTree({
   sections,
   sorted,
   activePath,
@@ -280,4 +281,4 @@ export function FileTree({
       ) : null}
     </ScrollView>
   );
-}
+});

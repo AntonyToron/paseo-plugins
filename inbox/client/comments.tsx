@@ -234,11 +234,13 @@ export function TextLink({
 type KeyEvent = NativeSyntheticEvent<{ key: string; metaKey?: boolean; ctrlKey?: boolean }>;
 
 /**
- * Writing or editing a comment under a line. ⌘↵ saves, Esc cancels. The text lives with the
- * screen, since the list unmounts rows scrolled far away and would lose it.
+ * Writing or editing a comment under a line. ⌘↵ saves, Esc cancels. The text is this box's own
+ * state, so a keystroke redraws only the box, not the review screen's hundreds of rows. The
+ * screen keeps a copy through `onChangeBody` (a ref, not state) because the list unmounts rows
+ * scrolled far away, and the box starts again from `initialBody` when it comes back.
  */
 export function CommentComposer({
-  body,
+  initialBody,
   editing,
   saving,
   styles,
@@ -246,7 +248,7 @@ export function CommentComposer({
   onSave,
   onCancel,
 }: {
-  body: string;
+  initialBody: string;
   editing: boolean;
   saving: boolean;
   styles: CommentStyles;
@@ -254,6 +256,7 @@ export function CommentComposer({
   onSave(body: string): void;
   onCancel(): void;
 }) {
+  const [body, setBody] = useState(initialBody);
   const save = () => {
     if (body.trim()) onSave(body.trim());
   };
@@ -263,7 +266,10 @@ export function CommentComposer({
         autoFocus
         multiline
         value={body}
-        onChangeText={onChangeBody}
+        onChangeText={(text) => {
+          setBody(text);
+          onChangeBody(text);
+        }}
         placeholder="Leave a comment for the chat. It stays here until you send it."
         style={styles.input}
         onKeyPress={(event: KeyEvent) => {

@@ -2,7 +2,7 @@ import type { PluginTheme, RpcOutput } from "@getpaseo/plugin";
 import { openExternalUrl, useRpc, type PluginScreenProps } from "@getpaseo/plugin/client";
 import { FlatList, useToast } from "@getpaseo/plugin/client/react-native";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -492,6 +492,37 @@ function FileHeader({
   );
 }
 
+/**
+ * One diff line. Memoized, with only stable props, because a few hundred are on screen and the
+ * screen re-renders for things that don't touch them, like the file in view changing on scroll.
+ */
+const LineRow = memo(function LineRow({
+  item,
+  styles,
+  diffStyles,
+  onComment,
+}: {
+  item: Extract<Row, { kind: "line" }>;
+  styles: Styles;
+  diffStyles: DiffStyles;
+  onComment(anchor: CommentAnchor, editing: null): void;
+}) {
+  const { anchor } = item;
+  const comment = useCallback(() => {
+    if (anchor) onComment(anchor, null);
+  }, [anchor, onComment]);
+  return (
+    <View style={styles.body}>
+      <DiffLineRow
+        line={item.line}
+        segments={decorateFile(item.fileLines, item.path)[item.index] ?? null}
+        styles={diffStyles}
+        onComment={anchor ? comment : undefined}
+      />
+    </View>
+  );
+});
+
 export function ReviewScreen(props: PluginScreenProps) {
   const repo = props.params.repo ?? "";
   const number = Number(props.params.number);
@@ -514,12 +545,17 @@ export function ReviewScreen(props: PluginScreenProps) {
   const comments = useComments(repo, number);
   const saveComment = useSaveComment(repo, number);
   const deleteComment = useDeleteComment(repo, number);
-  // The comment being written or edited: where it goes, and its text so far.
+  // The comment being written or edited. Its text so far lives in a ref, not state: typing
+  // mustn't redraw the screen, only the box (see CommentComposer).
   const [draft, setDraft] = useState<{
     anchor: CommentAnchor;
     editing: PendingComment | null;
-    body: string;
   } | null>(null);
+  const draftBody = useRef("");
+  const startDraft = useCallback((anchor: CommentAnchor, editing: PendingComment | null) => {
+    draftBody.current = editing?.body ?? "";
+    setDraft({ anchor, editing });
+  }, []);
   const [sendOpen, setSendOpen] = useState(false);
   const pendingComments = comments.data?.comments ?? NO_COMMENTS;
   const commentsByFile = useMemo(() => {
@@ -611,19 +647,7 @@ export function ReviewScreen(props: PluginScreenProps) {
       }
     }
     return out;
-    // The draft's text isn't a dependency: typing shouldn't rebuild every row.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    sections,
-    isOpen,
-    isExpanded,
-    summaries,
-    diffs.parsed,
-    diffs.pending,
-    commentsAt,
-    draft?.anchor,
-    draft?.editing,
-  ]);
+  }, [sections, isOpen, isExpanded, summaries, diffs.parsed, diffs.pending, commentsAt, draft]);
 
   const [listWidth, setListWidth] = useState(0);
   const estimate = useCallback(
@@ -655,6 +679,10 @@ export function ReviewScreen(props: PluginScreenProps) {
   };
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
+  // A stable handle for the memoized tree, which would otherwise redraw every row on each render.
+  const jumpToRef = useRef(jumpTo);
+  jumpToRef.current = jumpTo;
+  const onJump = useCallback((file: ReviewFile) => jumpToRef.current(file), []);
 
   const onViewable = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     const first = viewableItems
@@ -762,28 +790,17 @@ export function ReviewScreen(props: PluginScreenProps) {
             onToggleViewed={() => toggleViewed(item.file)}
           />
         );
-      case "line": {
-        const { anchor } = item;
+      case "line":
         return (
-          <View style={styles.body}>
-            <DiffLineRow
-              line={item.line}
-              segments={decorateFile(item.fileLines, item.path)[item.index] ?? null}
-              styles={diffStyles}
-              onComment={anchor ? () => setDraft({ anchor, editing: null, body: "" }) : undefined}
-            />
-          </View>
+          <LineRow item={item} styles={styles} diffStyles={diffStyles} onComment={startDraft} />
         );
-      }
       case "comment":
         return (
           <View style={styles.body}>
             <CommentCard
               comment={item.comment}
               styles={commentStyles}
-              onEdit={() =>
-                setDraft({ anchor: item.comment, editing: item.comment, body: item.comment.body })
-              }
+              onEdit={() => startDraft(item.comment, item.comment)}
               onDelete={() => deleteComment.mutate(item.comment.id)}
             />
           </View>
@@ -792,11 +809,13 @@ export function ReviewScreen(props: PluginScreenProps) {
         return (
           <View style={styles.body}>
             <CommentComposer
-              body={draft?.body ?? ""}
+              initialBody={draftBody.current}
               editing={Boolean(item.editing)}
               saving={saveComment.isPending}
               styles={commentStyles}
-              onChangeBody={(body) => setDraft((current) => current && { ...current, body })}
+              onChangeBody={(body) => {
+                draftBody.current = body;
+              }}
               onCancel={() => setDraft(null)}
               onSave={(body) =>
                 saveComment.mutate(
@@ -821,7 +840,7 @@ export function ReviewScreen(props: PluginScreenProps) {
         commentCounts={commentsByFile}
         theme={props.theme}
         compact={props.layout.compact}
-        onJump={jumpTo}
+        onJump={onJump}
       />
       <View style={styles.main}>
         <View style={styles.header}>
