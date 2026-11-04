@@ -152,6 +152,22 @@ type Row =
 
 const isViewed = (file: ReviewFile) => file.viewed === "VIEWED";
 
+/** The file a row belongs to, for rows inside a file's diff; null for section and file headers. */
+function rowPath(row: Row): string | null {
+  switch (row.kind) {
+    case "line":
+      return row.path;
+    case "comment":
+      return row.comment.path;
+    case "composer":
+      return row.anchor.path;
+    case "status":
+      return row.key.slice(row.key.indexOf(":") + 1);
+    default:
+      return null;
+  }
+}
+
 /** Where a comment on this line would sit: removed lines by their old number, the rest by their new one. */
 function lineAnchor(path: string, line: DiffLine): CommentAnchor | null {
   if (line.kind === "remove" && line.oldLine !== null)
@@ -242,6 +258,17 @@ function createStyles({ colors }: PluginTheme, compact: boolean) {
       borderTopRightRadius: 8,
     },
     fileHeaderCollapsed: { borderBottomLeftRadius: 8, borderBottomRightRadius: 8 },
+    listArea: { flex: 1, minHeight: 0 },
+    // Laid over the list's top edge, lined up with the list's own padding.
+    pinned: { position: "absolute" as const, top: 0, left: 18, right: 18, zIndex: 2 },
+    fileHeaderPinned: {
+      marginTop: 0,
+      borderTopLeftRadius: 0,
+      borderTopRightRadius: 0,
+      borderBottomLeftRadius: 8,
+      borderBottomRightRadius: 8,
+      boxShadow: "0 4px 10px rgba(0, 0, 0, 0.35)",
+    },
     chevron: { fontSize: 11, color: colors.foregroundMuted, width: 12 },
     filePath: {
       flex: 1,
@@ -432,6 +459,7 @@ function FileHeader({
   file,
   summary,
   expanded,
+  pinned,
   prUrl,
   commentCount,
   styles,
@@ -441,6 +469,8 @@ function FileHeader({
   file: ReviewFile;
   summary: string | null;
   expanded: boolean;
+  /** The copy pinned above the list while this file's own header is scrolled away. */
+  pinned?: boolean;
   prUrl: string;
   commentCount: number;
   styles: Styles;
@@ -456,6 +486,7 @@ function FileHeader({
         styles.fileHeader,
         hovered && styles.fileHeaderHovered,
         !expanded && styles.fileHeaderCollapsed,
+        pinned && styles.fileHeaderPinned,
       ]}
     >
       <Text style={styles.chevron}>{expanded ? "▾" : "▸"}</Text>
@@ -539,6 +570,8 @@ export function ReviewScreen(props: PluginScreenProps) {
   // Files you expanded or collapsed by hand; the rest follow GitHub: viewed files start folded.
   const [overrides, setOverrides] = useState<ReadonlyMap<string, boolean>>(new Map());
   const [activePath, setActivePath] = useState<string | null>(null);
+  // The file whose header is pinned above the list, when its own header has scrolled away.
+  const [pinnedPath, setPinnedPath] = useState<string | null>(null);
   const listRef = useRef<NativeFlatList<Row>>(null);
   const toast = useToast();
   const commentStyles = useMemo(() => createCommentStyles(props.theme), [props.theme]);
@@ -663,6 +696,17 @@ export function ReviewScreen(props: PluginScreenProps) {
     setViewed.mutate({ paths: [file.path], viewed });
   };
 
+  // From the pinned header, folding a file you've scrolled deep into would leave you wherever
+  // the list's shorter content puts you; GitHub instead brings the folded header to the top, with
+  // the next file right under it.
+  const scrollToFileHeader = (path: string) => {
+    const scroll = () => {
+      const index = rowsRef.current.findIndex((row) => row.key === `file:${path}`);
+      if (index >= 0) listRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0 });
+    };
+    for (const delay of JUMP_SETTLE_MS) setTimeout(scroll, delay);
+  };
+
   const jumpTo = (file: ReviewFile) => {
     const section = sections.find((candidate) => candidate.files.includes(file));
     if (section && !isOpen(section))
@@ -685,11 +729,13 @@ export function ReviewScreen(props: PluginScreenProps) {
   const onJump = useCallback((file: ReviewFile) => jumpToRef.current(file), []);
 
   const onViewable = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
-    const first = viewableItems
-      .map((token) => token.item as Row)
-      .find((row) => row.kind === "file" || row.kind === "line");
+    const rowsInView = viewableItems.map((token) => token.item as Row);
+    const first = rowsInView.find((row) => row.kind === "file" || row.kind === "line");
     if (first?.kind === "file") setActivePath(first.file.path);
     else if (first?.kind === "line") setActivePath(first.path);
+    // The top row is inside a file whose header has scrolled away: pin that header.
+    const top = rowsInView[0];
+    setPinnedPath(top ? rowPath(top) : null);
   }).current;
 
   if (!repo || !Number.isInteger(number))
@@ -728,6 +774,7 @@ export function ReviewScreen(props: PluginScreenProps) {
         : null;
   // The sections that start folded are the ones you skip reading; one press ticks them on GitHub.
   const skipped = sections.filter((section) => !section.openByDefault);
+  const pinnedFile = pinnedPath ? data.files.find((file) => file.path === pinnedPath) : undefined;
   const skippedUnviewed = skipped
     .flatMap((section) => section.files)
     .filter((file) => !isViewed(file))
@@ -900,24 +947,47 @@ export function ReviewScreen(props: PluginScreenProps) {
           {sortNote ? <Text style={styles.meta}>{sortNote}</Text> : null}
           {diffs.errors.length ? <Text style={styles.error}>{diffs.errors[0]}</Text> : null}
         </View>
-        <FlatList
-          ref={listRef}
-          data={rows}
-          keyExtractor={(row) => row.key}
-          renderItem={renderRow}
-          contentContainerStyle={styles.list}
-          initialNumToRender={60}
-          windowSize={21}
-          onViewableItemsChanged={onViewable}
-          viewabilityConfig={{ itemVisiblePercentThreshold: 10 }}
-          getItemLayout={metrics.getItemLayout}
-          onLayout={(event) => {
-            const width = Math.round(event.nativeEvent.layout.width);
-            if (width === listWidth) return;
-            metrics.forgetMeasured();
-            setListWidth(width);
-          }}
-        />
+        <View style={styles.listArea}>
+          <FlatList
+            ref={listRef}
+            data={rows}
+            keyExtractor={(row) => row.key}
+            renderItem={renderRow}
+            contentContainerStyle={styles.list}
+            initialNumToRender={60}
+            windowSize={21}
+            onViewableItemsChanged={onViewable}
+            viewabilityConfig={{ itemVisiblePercentThreshold: 10 }}
+            getItemLayout={metrics.getItemLayout}
+            onLayout={(event) => {
+              const width = Math.round(event.nativeEvent.layout.width);
+              if (width === listWidth) return;
+              metrics.forgetMeasured();
+              setListWidth(width);
+            }}
+          />
+          {pinnedFile ? (
+            <View style={styles.pinned}>
+              <FileHeader
+                file={pinnedFile}
+                summary={summaries.get(pinnedFile.path) || null}
+                expanded
+                pinned
+                prUrl={data.url}
+                commentCount={commentsByFile.get(pinnedFile.path) ?? 0}
+                styles={styles}
+                onToggleExpanded={() => {
+                  setOverrides((current) => new Map(current).set(pinnedFile.path, false));
+                  scrollToFileHeader(pinnedFile.path);
+                }}
+                onToggleViewed={() => {
+                  toggleViewed(pinnedFile);
+                  scrollToFileHeader(pinnedFile.path);
+                }}
+              />
+            </View>
+          ) : null}
+        </View>
       </View>
       <SendDialog
         repo={repo}
