@@ -9,6 +9,14 @@ Press a row to open the PR on GitHub. **Start review** opens a new chat in that 
 
 Priority comes from the repo's **High / Medium / Low Priority** labels. Everything comes from `gh` on the machine running Paseo, refreshed every couple of minutes.
 
+## Reviewing files
+
+**Files** on any inbox row, or `/review-files <PR URL or number>` in a chat, opens a PR's changed files next to their diffs.
+
+- Files are grouped by path: **Source** open, with **Config and docs**, **Tests**, and **Generated and lockfiles** folded away. Each group shows how much you've viewed and how many lines it holds, and **Mark viewed** clears a whole group at once.
+- The checkboxes are GitHub's own **Viewed** marks, so ticking a file here ticks it on GitHub's Files tab and the other way round. A file that changed after you viewed it shows **CHANGED** and comes back unviewed, just as on GitHub. **Hide viewed files** keeps the list to what's left.
+- Diffs come from a local copy of the repo that the plugin keeps to itself (bare, with file contents fetched only when a diff needs them), so big files open instantly and your own checkouts are never touched. **Viewed, next** ticks the file and moves to the next unviewed one.
+
 ## Claude's check
 
 Requests that have waited two days or more, and aren't already at the top, get a quick read by Claude Haiku on your Claude subscription. It reads the PR's description and searches Slack once for messages about the PR. If someone is waiting on the review, asked for it, or the PR blocks a release or a customer, it moves to **Look at these first** with Claude's reason and a **Slack** button for the message. If the review looks covered by someone else, the row gets a note instead. It never hides a request.

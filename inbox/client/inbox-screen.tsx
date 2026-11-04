@@ -156,6 +156,10 @@ const shortRepo = (repo: string) => repo.split("/").at(-1) ?? repo;
 /** Web bubbles a button press to the row underneath, which would also open GitHub. */
 const stop = (event?: GestureResponderEvent) => event?.stopPropagation?.();
 
+export type InboxScreenProps = PluginScreenProps & {
+  openReview(repo: string, number: number): void;
+};
+
 function Row({
   item,
   color,
@@ -165,7 +169,7 @@ function Row({
   item: InboxItem;
   color: string;
   styles: Styles;
-  props: PluginScreenProps;
+  props: InboxScreenProps;
 }) {
   const toast = useToast();
   const start = useRpc(startReview);
@@ -209,6 +213,16 @@ function Row({
             <Text style={styles.secondaryText}>Slack</Text>
           </Pressable>
         ) : null}
+        <Pressable
+          accessibilityRole="button"
+          style={styles.secondaryButton}
+          onPress={(event) => {
+            stop(event);
+            props.openReview(item.repo, item.number);
+          }}
+        >
+          <Text style={styles.secondaryText}>Files</Text>
+        </Pressable>
         {item.kind === "review" ? (
           <Pressable
             accessibilityRole="button"
@@ -242,7 +256,7 @@ function Section({
   items: readonly InboxItem[];
   color: string;
   styles: Styles;
-  props: PluginScreenProps;
+  props: InboxScreenProps;
   note?: string;
   collapsible?: boolean;
 }) {
@@ -272,7 +286,7 @@ function Section({
   );
 }
 
-export function InboxScreen(props: PluginScreenProps) {
+export function InboxScreen(props: InboxScreenProps) {
   const styles = useMemo(() => createStyles(props.theme), [props.theme]);
   const { colors } = props.theme;
   const { data, error, isPending } = useInbox();

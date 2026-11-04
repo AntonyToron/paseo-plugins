@@ -1,6 +1,6 @@
 # inbox
 
-A PR inbox for [Paseo](https://github.com/getpaseo/paseo): what to review first, and what your own PRs need from you.
+A PR inbox for [Paseo](https://github.com/getpaseo/paseo): what to review first, what your own PRs need from you, and a fast way to read a PR file by file.
 
 The pull requests that need you, in one screen, from **PR inbox** in the sidebar. The badge counts what to look at first plus your own PRs that need you.
 
@@ -12,6 +12,14 @@ The pull requests that need you, in one screen, from **PR inbox** in the sidebar
 Press a row to open the PR on GitHub. **Start review** opens a new chat in that repo's Paseo project with `/pr-review <url>`, using the checkout and settings of your most recent review chat. The repo needs a Paseo project whose git remote points at it.
 
 Priority comes from the repo's **High / Medium / Low Priority** labels. Everything comes from `gh` on the machine running Paseo, refreshed every couple of minutes.
+
+## Reviewing files
+
+**Files** on any inbox row, or `/review-files <PR URL or number>` in a chat, opens a PR's changed files next to their diffs.
+
+- Files are grouped by path: **Source** open, with **Config and docs**, **Tests**, and **Generated and lockfiles** folded away. Each group shows how much you've viewed and how many lines it holds, and **Mark viewed** clears a whole group at once.
+- The checkboxes are GitHub's own **Viewed** marks, so ticking a file here ticks it on GitHub's Files tab and the other way round. A file that changed after you viewed it shows **CHANGED** and comes back unviewed, just as on GitHub. **Hide viewed files** keeps the list to what's left.
+- Diffs come from a local copy of the repo that the plugin keeps to itself (bare, with file contents fetched only when a diff needs them), so big files open instantly and your own checkouts are never touched. **Viewed, next** ticks the file and moves to the next unviewed one.
 
 ## Claude's check
 
