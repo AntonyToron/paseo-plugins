@@ -8,3 +8,9 @@ The pull requests that need you, in one screen, from **PR inbox** in the sidebar
 Press a row to open the PR on GitHub. **Start review** opens a new chat in that repo's Paseo project with `/pr-review <url>`, using the checkout and settings of your most recent review chat. The repo needs a Paseo project whose git remote points at it.
 
 Priority comes from the repo's **High / Medium / Low Priority** labels. Everything comes from `gh` on the machine running Paseo, refreshed every couple of minutes.
+
+## Claude's check
+
+Requests that have waited two days or more, and aren't already at the top, get a quick read by Claude Haiku on your Claude subscription. It reads the PR's description and searches Slack once for messages about the PR. If someone is waiting on the review, asked for it, or the PR blocks a release or a customer, it moves to **Look at these first** with Claude's reason and a **Slack** button for the message. If the review looks covered by someone else, the row gets a note instead. It never hides a request.
+
+Each PR is checked again when it changes, or after a day. The check runs `claude -p` in the background, two PRs at a time, and its only tool is Slack's read-only search. It keeps no transcript and deletes the Slack results Claude Code saves along the way. It needs the Claude Code CLI signed in, and Slack connected to your Claude account.

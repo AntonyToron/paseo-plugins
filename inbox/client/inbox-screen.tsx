@@ -99,6 +99,15 @@ function createStyles({ colors }: PluginTheme) {
       backgroundColor: colors.accent,
     },
     buttonText: { fontSize: 12, fontWeight: "600" as const, color: colors.accentForeground },
+    secondaryButton: {
+      paddingHorizontal: 9,
+      paddingVertical: 3,
+      borderRadius: 6,
+      backgroundColor: colors.surface2,
+    },
+    secondaryText: { fontSize: 12, color: colors.foreground },
+    triageNote: { fontSize: 12, color: colors.foregroundMuted, textAlign: "center" as const },
+    triageError: { fontSize: 12, color: colors.statusWarning, textAlign: "center" as const },
     toggle: { fontSize: 12, color: colors.foregroundMuted },
     empty: {
       fontSize: 13,
@@ -164,6 +173,18 @@ function Row({
           {shortRepo(item.repo)}#{item.number}
           {author} · {item.reason}
         </Text>
+        {item.slackUrl ? (
+          <Pressable
+            accessibilityRole="button"
+            style={styles.secondaryButton}
+            onPress={(event) => {
+              stop(event);
+              void openExternalUrl(item.slackUrl as string);
+            }}
+          >
+            <Text style={styles.secondaryText}>Slack</Text>
+          </Pressable>
+        ) : null}
         {item.kind === "review" ? (
           <Pressable
             accessibilityRole="button"
@@ -253,6 +274,16 @@ export function InboxScreen(props: PluginScreenProps) {
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
       {error ? <Text style={styles.error}>{error.message}</Text> : null}
+      {data.triage.pending ? (
+        <Text style={styles.triageNote}>
+          Claude is reading {data.triage.pending} older request
+          {data.triage.pending === 1 ? "" : "s"} and checking Slack. Results move PRs up as they
+          arrive.
+        </Text>
+      ) : null}
+      {data.triage.error ? (
+        <Text style={styles.triageError}>Claude's check stopped: {data.triage.error}</Text>
+      ) : null}
       <Section
         title="Look at these first"
         items={data.priority}

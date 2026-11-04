@@ -16,7 +16,7 @@ query($q: String!) {
   search(query: $q, type: ISSUE, first: 100) {
     nodes {
       ... on PullRequest {
-        number title url createdAt headRefName
+        number title url createdAt updatedAt headRefName body
         author { login }
         repository { nameWithOwner }
         labels(first: 20) { nodes { name } }
@@ -49,7 +49,9 @@ interface RequestNode {
   title: string;
   url: string;
   createdAt: string;
+  updatedAt: string;
   headRefName: string;
+  body: string;
   author: Login | null;
   repository: { nameWithOwner: string };
   labels: { nodes: { name: string }[] };
@@ -133,6 +135,8 @@ export async function reviewRequests(): Promise<ReviewRequest[]> {
       branch: node.headRefName,
       labels: node.labels.nodes.map((label) => label.name),
       requestedAt,
+      updatedAt: node.updatedAt,
+      body: node.body,
     };
   });
 }

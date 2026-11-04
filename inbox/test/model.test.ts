@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   myAction,
+  needsTriage,
   sortReviewRequests,
   urgency,
   type MyPullRequest,
@@ -19,6 +20,8 @@ const request = (overrides: Partial<ReviewRequest> = {}): ReviewRequest => ({
   branch: "sam/settings",
   labels: ["Medium Priority"],
   requestedAt: daysAgo(1),
+  updatedAt: daysAgo(1),
+  body: "",
   approvedBy: [],
   changesRequestedBy: [],
   ...overrides,
@@ -63,6 +66,50 @@ describe("sortReviewRequests", () => {
     expect(sorted.stale.map((item) => item.number)).toEqual([1]);
     expect(sorted.priority.map((item) => item.number)).toEqual([2]);
     expect(sorted.reviews[0]?.reason).toBe("medium priority · approved by kim");
+  });
+
+  it("lets Claude's check raise a request to the top, or note that it isn't needed, but never hide it", () => {
+    const triage = new Map([
+      [
+        "acme/app#4",
+        {
+          verdict: "review_now" as const,
+          reason: "Kim asked for a review in #eng",
+          slackUrl: "https://acme.slack.com/archives/C1/p1",
+        },
+      ],
+      [
+        "acme/app#5",
+        { verdict: "not_needed" as const, reason: "Sam is reviewing it", slackUrl: null },
+      ],
+    ]);
+    const sorted = sortReviewRequests(
+      [request({ number: 4 }), request({ number: 5 })],
+      NOW,
+      triage,
+    );
+    expect(sorted.priority).toMatchObject([
+      {
+        number: 4,
+        reason: "Claude: Kim asked for a review in #eng",
+        slackUrl: "https://acme.slack.com/archives/C1/p1",
+      },
+    ]);
+    expect(sorted.reviews).toMatchObject([
+      { number: 5, reason: "medium priority · Claude: Sam is reviewing it" },
+    ]);
+  });
+});
+
+describe("needsTriage", () => {
+  it("checks requests that have waited a couple of days and aren't already at the top", () => {
+    expect(needsTriage(request({ requestedAt: daysAgo(3), labels: ["Low Priority"] }), NOW)).toBe(
+      true,
+    );
+    expect(needsTriage(request({ requestedAt: daysAgo(1) }), NOW)).toBe(false);
+    expect(needsTriage(request({ requestedAt: daysAgo(3), labels: ["High Priority"] }), NOW)).toBe(
+      false,
+    );
   });
 });
 

@@ -1,15 +1,18 @@
 import type { InboxItem, InboxSnapshot } from "../shared/model";
 import { myAction, sortReviewRequests } from "../shared/model";
 import { me, myPullRequests, reviewRequests } from "./github";
+import { Triager } from "./triage";
 
 const CACHE_MS = 2 * 60_000;
 
 let cached: { at: number; snapshot: Promise<InboxSnapshot> } | null = null;
+const triager = new Triager();
 
 async function build(): Promise<InboxSnapshot> {
   const [requests, mine, login] = await Promise.all([reviewRequests(), myPullRequests(), me()]);
   const now = Date.now();
-  const sorted = sortReviewRequests(requests, now);
+  const triage = await triager.results(requests, now);
+  const sorted = sortReviewRequests(requests, now, triage.results);
   const actions: InboxItem[] = [];
   for (const pr of mine) {
     const action = myAction(pr, login);
@@ -23,6 +26,7 @@ async function build(): Promise<InboxSnapshot> {
       reason: action.reason,
       since: action.since,
       kind: "mine",
+      slackUrl: null,
     });
   }
   // Unanswered feedback first, then failing checks, then PRs ready to merge.
@@ -32,6 +36,7 @@ async function build(): Promise<InboxSnapshot> {
     ...sorted,
     mine: actions.sort((a, b) => order(a) - order(b) || a.since.localeCompare(b.since)),
     quietMine: mine.length - actions.length,
+    triage: { pending: triage.pending, error: triage.error },
   };
 }
 

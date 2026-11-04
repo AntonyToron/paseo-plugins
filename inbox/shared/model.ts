@@ -11,6 +11,8 @@ export const inboxItem = z.object({
   /** When it started waiting on you: the review request, or the feedback you haven't answered. */
   since: z.string(),
   kind: z.enum(["review", "mine"]),
+  /** A Slack message about this PR that Claude's check found. */
+  slackUrl: z.string().nullable(),
 });
 export type InboxItem = z.infer<typeof inboxItem>;
 
@@ -21,6 +23,8 @@ export const inboxSnapshot = z.object({
   stale: z.array(inboxItem),
   /** Your open PRs with nothing for you to do right now. */
   quietMine: z.number(),
+  /** Claude's background check: how far it has got, and why it stopped if it did. */
+  triage: z.object({ pending: z.number(), error: z.string().nullable() }),
 });
 export type InboxSnapshot = z.infer<typeof inboxSnapshot>;
 
@@ -85,9 +89,18 @@ export interface ReviewRequest {
   branch: string;
   labels: string[];
   requestedAt: string;
+  updatedAt: string;
+  body: string;
   /** Other reviewers' current verdicts. */
   approvedBy: string[];
   changesRequestedBy: string[];
+}
+
+/** What a quick Claude read of the PR and Slack said about how soon you should review it. */
+export interface Triage {
+  verdict: "review_now" | "normal" | "not_needed";
+  reason: string;
+  slackUrl: string | null;
 }
 
 const daysSince = (iso: string, now: number) => Math.floor((now - Date.parse(iso)) / DAY_MS);
@@ -131,11 +144,27 @@ export function urgency(
   return null;
 }
 
-export function sortReviewRequests(requests: readonly ReviewRequest[], now: number) {
+export const triageKey = (request: Pick<ReviewRequest, "repo" | "number">) =>
+  `${request.repo}#${request.number}`;
+
+/** Only requests that have sat a while get a Claude check; fresh ones haven't had time to block anyone. */
+export const TRIAGE_AFTER_DAYS = 2;
+export const needsTriage = (request: ReviewRequest, now: number) =>
+  urgency(request, now) === null && daysSince(request.requestedAt, now) >= TRIAGE_AFTER_DAYS;
+
+// Claude's verdict ranks with security: someone is blocked or asking, which is as pressing.
+const CLAUDE_RANK = 2;
+
+export function sortReviewRequests(
+  requests: readonly ReviewRequest[],
+  now: number,
+  triage: ReadonlyMap<string, Triage> = new Map(),
+) {
   const priority: (InboxItem & { rank: number })[] = [];
   const reviews: InboxItem[] = [];
   const stale: InboxItem[] = [];
   for (const request of requests) {
+    const checked = triage.get(triageKey(request));
     const item = {
       repo: request.repo,
       number: request.number,
@@ -144,12 +173,21 @@ export function sortReviewRequests(requests: readonly ReviewRequest[], now: numb
       author: request.author,
       since: request.requestedAt,
       kind: "review" as const,
+      // A link only earns a button when it backs a verdict; "nothing found" links are noise.
+      slackUrl: checked && checked.verdict !== "normal" ? checked.slackUrl : null,
     };
     const urgent = urgency(request, now);
     const waited = daysSince(request.requestedAt, now);
+    const note = checked && checked.verdict !== "normal" ? `Claude: ${checked.reason}` : null;
     const withVerdicts = (reason: string) =>
-      [reason, verdicts(request)].filter(Boolean).join(" · ");
+      [reason, verdicts(request), note].filter(Boolean).join(" · ");
     if (urgent) priority.push({ ...item, reason: withVerdicts(urgent.reason), rank: urgent.rank });
+    else if (checked?.verdict === "review_now")
+      priority.push({
+        ...item,
+        reason: [`Claude: ${checked.reason}`, verdicts(request)].filter(Boolean).join(" · "),
+        rank: CLAUDE_RANK,
+      });
     else if (waited > STALE_AFTER_DAYS)
       stale.push({ ...item, reason: withVerdicts(`requested ${waited} days ago`) });
     else
