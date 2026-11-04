@@ -60,6 +60,8 @@ function createTreeStyles({ colors }: PluginTheme, compact: boolean) {
     viewed: { color: colors.foregroundMuted, opacity: 0.6 },
     dirHint: { fontSize: 11, color: colors.foregroundMuted },
     stat: { fontSize: 11, color: colors.foregroundMuted },
+    link: { color: colors.accent },
+    foldedNote: { paddingHorizontal: 6, paddingTop: 12 },
   };
 }
 type TreeStyles = ReturnType<typeof createTreeStyles>;
@@ -97,10 +99,10 @@ function FileRow({
 
 /**
  * The PR's files by folder, the way GitHub's tree shows them, or in Claude's reading order once
- * it has sorted them. Folders show how many files they hold, so crowded ones stand out.
+ * it has sorted them. Folders show how many files they hold, so crowded ones stand out. Like the
+ * diff, the tree leaves out folded sections (tests, generated files) until asked for them.
  */
 export function FileTree({
-  files,
   sections,
   sorted,
   activePath,
@@ -108,7 +110,6 @@ export function FileTree({
   compact,
   onJump,
 }: {
-  files: readonly ReviewFile[];
   sections: readonly TreeSection[];
   sorted: boolean;
   activePath: string | null;
@@ -119,6 +120,16 @@ export function FileTree({
   const styles = useMemo(() => createTreeStyles(theme, compact), [theme, compact]);
   const [mode, setMode] = useState<Mode>("folders");
   const [closed, setClosed] = useState<ReadonlySet<string>>(new Set());
+  const [showFolded, setShowFolded] = useState(false);
+  const listed = (section: TreeSection) => section.open || showFolded;
+  const foldedCount = sections
+    .filter((section) => !section.open)
+    .reduce((sum, section) => sum + section.files.length, 0);
+  const files = useMemo(
+    () =>
+      sections.filter((section) => section.open || showFolded).flatMap((section) => section.files),
+    [sections, showFolded],
+  );
   const rows = useMemo(() => folderRows(files, closed), [files, closed]);
   const shown: Mode = sorted ? mode : "folders";
 
@@ -188,19 +199,35 @@ export function FileTree({
                 {section.label.toUpperCase()} · {section.files.length}
                 {section.open ? "" : " · folded"}
               </Text>
-              {section.files.map((file) => (
-                <FileRow
-                  key={file.path}
-                  file={file}
-                  depth={-1}
-                  showDir
-                  active={file.path === activePath}
-                  styles={styles}
-                  onJump={onJump}
-                />
-              ))}
+              {listed(section)
+                ? section.files.map((file) => (
+                    <FileRow
+                      key={file.path}
+                      file={file}
+                      depth={-1}
+                      showDir
+                      active={file.path === activePath}
+                      styles={styles}
+                      onJump={onJump}
+                    />
+                  ))
+                : null}
             </View>
           ))}
+      {foldedCount ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setShowFolded(!showFolded)}
+          style={styles.foldedNote}
+        >
+          <Text style={styles.stat}>
+            {showFolded
+              ? "Hide the folded sections' files"
+              : `${foldedCount} ${foldedCount === 1 ? "file" : "files"} in folded sections not shown. `}
+            {showFolded ? null : <Text style={styles.link}>Show</Text>}
+          </Text>
+        </Pressable>
+      ) : null}
     </ScrollView>
   );
 }

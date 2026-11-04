@@ -27,6 +27,7 @@ import {
   type ReviewFile,
   type SortedFile,
 } from "../shared/review";
+import { decorateFile } from "./decorate";
 import { createDiffStyles, DiffLineRow, type DiffStyles } from "./diff-view";
 import { FileTree } from "./file-tree";
 import { useRowMetrics } from "./row-metrics";
@@ -124,7 +125,14 @@ function buildSections(files: readonly ReviewFile[], sorted: readonly SortedFile
 type Row =
   | { kind: "section"; key: string; section: Section; open: boolean }
   | { kind: "file"; key: string; file: ReviewFile; expanded: boolean; summary: string | null }
-  | { kind: "line"; key: string; line: DiffLine }
+  | {
+      kind: "line";
+      key: string;
+      line: DiffLine;
+      path: string;
+      fileLines: readonly DiffLine[];
+      index: number;
+    }
   | { kind: "status"; key: string; text: string };
 
 const isViewed = (file: ReviewFile) => file.viewed === "VIEWED";
@@ -472,7 +480,14 @@ export function ReviewScreen(props: PluginScreenProps) {
           continue;
         }
         diff.lines.forEach((line, index) =>
-          out.push({ kind: "line", key: `line:${file.path}:${index}`, line }),
+          out.push({
+            kind: "line",
+            key: `line:${file.path}:${index}`,
+            line,
+            path: file.path,
+            fileLines: diff.lines,
+            index,
+          }),
         );
         if (diff.truncated)
           out.push({
@@ -521,7 +536,7 @@ export function ReviewScreen(props: PluginScreenProps) {
       .map((token) => token.item as Row)
       .find((row) => row.kind === "file" || row.kind === "line");
     if (first?.kind === "file") setActivePath(first.file.path);
-    else if (first?.kind === "line") setActivePath(first.key.slice(5, first.key.lastIndexOf(":")));
+    else if (first?.kind === "line") setActivePath(first.path);
   }).current;
 
   if (!repo || !Number.isInteger(number))
@@ -612,7 +627,11 @@ export function ReviewScreen(props: PluginScreenProps) {
       case "line":
         return (
           <View style={styles.body}>
-            <DiffLineRow line={item.line} styles={diffStyles} />
+            <DiffLineRow
+              line={item.line}
+              segments={decorateFile(item.fileLines, item.path)[item.index] ?? null}
+              styles={diffStyles}
+            />
           </View>
         );
       case "status":
@@ -623,7 +642,6 @@ export function ReviewScreen(props: PluginScreenProps) {
   return (
     <View style={styles.root}>
       <FileTree
-        files={data.files}
         sections={treeSections}
         sorted={sorted.length > 0}
         activePath={activePath}

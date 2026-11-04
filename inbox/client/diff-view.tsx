@@ -1,6 +1,7 @@
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Text, View } from "react-native";
 import type { DiffLine } from "../shared/review";
+import type { Segment } from "./decorate";
 
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
@@ -12,8 +13,78 @@ const TINTS = {
   hunk: { line: "rgba(56, 139, 253, 0.12)", gutter: "rgba(56, 139, 253, 0.2)" },
 };
 
+// GitHub's syntax colours, keyed by Prism token type.
+const SYNTAX = {
+  dark: {
+    comment: "#8b949e",
+    keyword: "#ff7b72",
+    string: "#a5d6ff",
+    constant: "#79c0ff",
+    function: "#d2a8ff",
+    type: "#ffa657",
+    tag: "#7ee787",
+  },
+  light: {
+    comment: "#6e7781",
+    keyword: "#cf222e",
+    string: "#0a3069",
+    constant: "#0550ae",
+    function: "#8250df",
+    type: "#953800",
+    tag: "#116329",
+  },
+};
+type SyntaxRole = keyof (typeof SYNTAX)["dark"];
+
+const ROLES: Record<string, SyntaxRole> = {
+  comment: "comment",
+  prolog: "comment",
+  doctype: "comment",
+  cdata: "comment",
+  keyword: "keyword",
+  important: "keyword",
+  atrule: "keyword",
+  rule: "keyword",
+  string: "string",
+  char: "string",
+  "template-string": "string",
+  "template-punctuation": "string",
+  "attr-value": "string",
+  regex: "string",
+  url: "string",
+  number: "constant",
+  boolean: "constant",
+  constant: "constant",
+  property: "constant",
+  "attr-name": "constant",
+  symbol: "constant",
+  builtin: "constant",
+  entity: "constant",
+  function: "function",
+  "function-variable": "function",
+  "class-name": "type",
+  "maybe-class-name": "type",
+  tag: "tag",
+  selector: "tag",
+};
+
+// Pieces of a line edited in place, over the line's own tint.
+const CHANGED = { add: "rgba(46, 160, 67, 0.4)", remove: "rgba(248, 81, 73, 0.4)" };
+
+const isDark = (hex: string) => {
+  const match = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(hex);
+  if (!match) return true;
+  const [red, green, blue] = match.slice(1).map((part) => parseInt(part, 16));
+  return 0.299 * red! + 0.587 * green! + 0.114 * blue! < 128;
+};
+
 export function createDiffStyles({ colors }: PluginTheme) {
+  const palette = SYNTAX[isDark(colors.surface0) ? "dark" : "light"];
   return {
+    tokenColor: (type: string | null) => {
+      const role = type ? ROLES[type] : undefined;
+      return role ? palette[role] : undefined;
+    },
     line: { flexDirection: "row" as const },
     gutter: { flexDirection: "row" as const, flexShrink: 0 },
     number: {
@@ -32,6 +103,8 @@ export function createDiffStyles({ colors }: PluginTheme) {
       width: 18,
       textAlign: "center" as const,
     },
+    // Pieces of a line don't inherit the line's font on the web, so they carry it themselves.
+    segment: { fontFamily: MONO, fontSize: 12, lineHeight: 20 },
     code: {
       fontFamily: MONO,
       fontSize: 12,
@@ -62,7 +135,15 @@ export function createDiffStyles({ colors }: PluginTheme) {
 export type DiffStyles = ReturnType<typeof createDiffStyles>;
 
 /** One line of a unified diff, in GitHub's colours. */
-export function DiffLineRow({ line, styles }: { line: DiffLine; styles: DiffStyles }) {
+export function DiffLineRow({
+  line,
+  segments,
+  styles,
+}: {
+  line: DiffLine;
+  segments: readonly Segment[] | null;
+  styles: DiffStyles;
+}) {
   if (line.kind === "hunk") {
     return (
       <View style={[styles.line, { backgroundColor: TINTS.hunk.line }]}>
@@ -75,6 +156,7 @@ export function DiffLineRow({ line, styles }: { line: DiffLine; styles: DiffStyl
   }
   if (line.kind === "meta") return <Text style={styles.meta}>{line.text}</Text>;
   const tint = line.kind === "add" ? TINTS.add : line.kind === "remove" ? TINTS.remove : null;
+  const changedTint = line.kind === "context" ? undefined : CHANGED[line.kind];
   return (
     <View style={[styles.line, tint ? { backgroundColor: tint.line } : null]}>
       <View style={[styles.gutter, tint ? { backgroundColor: tint.gutter } : null]}>
@@ -85,7 +167,22 @@ export function DiffLineRow({ line, styles }: { line: DiffLine; styles: DiffStyl
         {line.kind === "add" ? "+" : line.kind === "remove" ? "−" : ""}
       </Text>
       <Text style={styles.code} selectable>
-        {line.text || " "}
+        {segments?.length
+          ? segments.map((segment, index) => (
+              <Text
+                key={index}
+                style={[
+                  styles.segment,
+                  {
+                    color: styles.tokenColor(segment.type) ?? styles.code.color,
+                    backgroundColor: segment.changed ? changedTint : undefined,
+                  },
+                ]}
+              >
+                {segment.text}
+              </Text>
+            ))
+          : line.text || " "}
       </Text>
     </View>
   );

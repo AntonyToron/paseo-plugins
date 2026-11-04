@@ -21,10 +21,10 @@ Priority comes from the repo's **High / Medium / Low Priority** labels. Everythi
 
 ## Reviewing files
 
-**Files** on any inbox row, or `/review-files <PR URL or number>` in a chat, opens a PR's diff the way GitHub's Files changed tab shows it: every file in one scroll, in red and green, with a file tree on the left that jumps to a file. The tree shows folders as GitHub's does, each with how many files it holds, so a crowded folder stands out.
+**Files** on any inbox row, or `/review-files <PR URL or number>` in a chat, opens a PR's diff the way GitHub's Files changed tab shows it: every file in one scroll, in red and green with GitHub's syntax colours, and with the changed words marked on a line edited in place. A file tree on the left jumps to a file. It shows folders as GitHub's does, each with how many files it holds, so a crowded folder stands out.
 
 - Claude Haiku sorts the source files into **Core**, **Supporting** and **Trivial**, in the order to read them, with a line under each file on what changed in it. It reads each file's size and the start of its diff, runs once per push, and takes a minute or two on a big PR. **Reading order** in the tree lists the files the same way.
-- Core, Supporting and config files are open. Trivial files, **Tests** and **Generated and lockfiles** start folded, since they're most of a big PR's lines; **Show** opens them.
+- Core, Supporting and config files are open. Trivial files, **Tests** and **Generated and lockfiles** start folded, since they're most of a big PR's lines; **Show** opens them. The tree leaves out folded sections' files too, until you ask for them.
 - Each file's **Viewed** tick is GitHub's own, so it matches the Files tab both ways. Ticking a file folds it, as on GitHub, and viewed files start folded and greyed out in the tree. A file that changed after you viewed it says so and opens again. **Mark all viewed** clears a section.
 - Diffs come from a local copy of the repo that the plugin keeps to itself (bare, with file contents fetched only when a diff needs them), so big files open instantly and your own checkouts are never touched.
 
