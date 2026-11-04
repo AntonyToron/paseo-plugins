@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { getInbox, startReview } from "../shared/contracts";
+import { FindPanel } from "./find-panel";
 import type { InboxItem, InboxSnapshot } from "../shared/model";
 
 export const inboxKeys = { snapshot: ["paseo-inbox", "snapshot"] as const };
@@ -120,8 +121,20 @@ function createStyles({ colors }: PluginTheme) {
       flexDirection: "row" as const,
       alignItems: "center" as const,
       gap: 10,
-      justifyContent: "flex-end" as const,
     },
+    tabs: {
+      flexDirection: "row" as const,
+      gap: 2,
+      padding: 3,
+      borderRadius: 8,
+      backgroundColor: colors.surface1,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    tab: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 6 },
+    tabActive: { backgroundColor: colors.surface2 },
+    tabText: { fontSize: 13, color: colors.foregroundMuted },
+    tabTextActive: { color: colors.foreground, fontWeight: "600" as const },
     updated: { fontSize: 12, color: colors.foregroundMuted },
     triageNote: { fontSize: 12, color: colors.foregroundMuted, textAlign: "center" as const },
     triageError: { fontSize: 12, color: colors.statusWarning, textAlign: "center" as const },
@@ -291,6 +304,7 @@ export function InboxScreen(props: InboxScreenProps) {
   const { colors } = props.theme;
   const { data, error, isPending } = useInbox();
   const refresh = useRefreshInbox();
+  const [tab, setTab] = useState<"needs" | "mine" | "find">("needs");
 
   if (isPending) {
     return (
@@ -311,8 +325,31 @@ export function InboxScreen(props: InboxScreenProps) {
     ? `${data.quietMine} other open PR${data.quietMine === 1 ? "" : "s"} of yours have nothing for you to do.`
     : undefined;
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.root}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+    >
       <View style={styles.toolbar}>
+        <View style={styles.tabs}>
+          {(
+            [
+              ["needs", `Needs you · ${needsYouCount(data)}`],
+              ["mine", `My PRs · ${data.allMine.length}`],
+              ["find", "Find a PR"],
+            ] as const
+          ).map(([id, label]) => (
+            <Pressable
+              key={id}
+              accessibilityRole="tab"
+              onPress={() => setTab(id)}
+              style={[styles.tab, tab === id && styles.tabActive]}
+            >
+              <Text style={[styles.tabText, tab === id && styles.tabTextActive]}>{label}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <View style={styles.spacer} />
         <Text style={styles.updated}>
           {refresh.isPending ? "Asking GitHub…" : updatedAgo(data.fetchedAt)}
         </Text>
@@ -329,47 +366,62 @@ export function InboxScreen(props: InboxScreenProps) {
         <Text style={styles.error}>Couldn't refresh: {refresh.error.message}</Text>
       ) : null}
       {error ? <Text style={styles.error}>{error.message}</Text> : null}
-      {data.triage.pending ? (
+      {tab === "mine" ? (
+        <Section
+          title="My open PRs"
+          items={data.allMine}
+          color={colors.accent}
+          styles={styles}
+          props={props}
+          note="Drafts included. The ones that need something from you come first."
+        />
+      ) : null}
+      {tab === "find" ? <FindPanel theme={props.theme} openReview={props.openReview} /> : null}
+      {tab === "needs" && data.triage.pending ? (
         <Text style={styles.triageNote}>
           Claude is reading {data.triage.pending} older request
           {data.triage.pending === 1 ? "" : "s"} and checking Slack. Results move PRs up as they
           arrive.
         </Text>
       ) : null}
-      {data.triage.error ? (
+      {tab === "needs" && data.triage.error ? (
         <Text style={styles.triageError}>Claude's check stopped: {data.triage.error}</Text>
       ) : null}
-      <Section
-        title="Look at these first"
-        items={data.priority}
-        color={colors.statusDanger}
-        styles={styles}
-        props={props}
-      />
-      <Section
-        title="Your PRs"
-        items={data.mine}
-        color={colors.statusWarning}
-        styles={styles}
-        props={props}
-        note={quiet}
-      />
-      <Section
-        title="Review requests"
-        items={data.reviews}
-        color={colors.accent}
-        styles={styles}
-        props={props}
-      />
-      <Section
-        title="Stale requests"
-        items={data.stale}
-        color={colors.foregroundMuted}
-        styles={styles}
-        props={props}
-        note="Waiting on you for over 30 days, and not urgent."
-        collapsible
-      />
+      {tab === "needs" ? (
+        <>
+          <Section
+            title="Look at these first"
+            items={data.priority}
+            color={colors.statusDanger}
+            styles={styles}
+            props={props}
+          />
+          <Section
+            title="Your PRs"
+            items={data.mine}
+            color={colors.statusWarning}
+            styles={styles}
+            props={props}
+            note={quiet}
+          />
+          <Section
+            title="Review requests"
+            items={data.reviews}
+            color={colors.accent}
+            styles={styles}
+            props={props}
+          />
+          <Section
+            title="Stale requests"
+            items={data.stale}
+            color={colors.foregroundMuted}
+            styles={styles}
+            props={props}
+            note="Waiting on you for over 30 days, and not urgent."
+            collapsible
+          />
+        </>
+      ) : null}
     </ScrollView>
   );
 }

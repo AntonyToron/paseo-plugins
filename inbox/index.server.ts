@@ -1,14 +1,23 @@
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import {
   listReviewFiles,
+  recentReviews,
   resolveReviewTarget,
   reviewFileDiffs,
   setReviewFilesViewed,
 } from "./server/review";
+import { searchTargets } from "./server/review-home";
 import { getSnapshot } from "./server/snapshot";
 import { startReviewChat } from "./server/start-review";
 import { getInbox, startReview } from "./shared/contracts";
-import { getFileDiffs, getReviewFiles, resolvePullRequest, setFilesViewed } from "./shared/review";
+import {
+  getFileDiffs,
+  getRecentReviews,
+  getReviewFiles,
+  resolvePullRequest,
+  searchReviewTargets,
+  setFilesViewed,
+} from "./shared/review";
 
 export default function contribute(server: PluginServerContext) {
   server.handle(getInbox, ({ refresh }) => getSnapshot(refresh === true));
@@ -17,5 +26,7 @@ export default function contribute(server: PluginServerContext) {
   server.handle(getFileDiffs, reviewFileDiffs);
   server.handle(setFilesViewed, setReviewFilesViewed);
   server.handle(resolvePullRequest, resolveReviewTarget);
+  server.handle(getRecentReviews, recentReviews);
+  server.handle(searchReviewTargets, searchTargets);
   return () => {};
 }

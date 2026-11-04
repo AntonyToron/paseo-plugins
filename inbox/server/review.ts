@@ -6,6 +6,7 @@ import type {
   setFilesViewed,
 } from "../shared/review";
 import { markViewed, pullRequestFiles } from "./review-github";
+import { readRecent, rememberOpened } from "./review-home";
 import { fetchPullRequest, fileDiffs, repoForCwd } from "./review-mirror";
 
 const PR_URL = /github\.com\/([\w.-]+\/[\w.-]+)\/pull\/(\d+)/;
@@ -28,8 +29,18 @@ async function loadFiles(repo: string, number: number) {
 
 export async function listReviewFiles({ repo, number }: RpcInput<typeof getReviewFiles>) {
   const pr = await loadFiles(repo, number);
+  await rememberOpened({
+    repo,
+    number,
+    title: pr.title,
+    author: pr.author,
+    state: pr.state,
+    updatedAt: pr.updatedAt,
+  });
   return { title: pr.title, url: pr.url, author: pr.author, headSha: pr.headSha, files: pr.files };
 }
+
+export const recentReviews = async () => ({ recent: await readRecent() });
 
 export async function reviewFileDiffs({ repo, number, paths }: RpcInput<typeof getFileDiffs>) {
   const pr = await current(repo, number);

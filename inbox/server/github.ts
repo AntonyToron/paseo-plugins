@@ -34,7 +34,7 @@ query($q: String!) {
   search(query: $q, type: ISSUE, first: 100) {
     nodes {
       ... on PullRequest {
-        number title url isDraft reviewDecision
+        number title url isDraft reviewDecision updatedAt
         repository { nameWithOwner }
         commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state } } } }
         reviews(last: 50) { nodes { author { login __typename } submittedAt } }
@@ -65,6 +65,7 @@ interface MineNode {
   url: string;
   isDraft: boolean;
   reviewDecision: string | null;
+  updatedAt: string;
   repository: { nameWithOwner: string };
   commits: {
     nodes: {
@@ -155,6 +156,7 @@ export async function myPullRequests(): Promise<MyPullRequest[]> {
       url: node.url,
       isDraft: node.isDraft,
       reviewDecision: node.reviewDecision,
+      updatedAt: node.updatedAt,
       checks: last?.statusCheckRollup?.state ?? null,
       lastCommitAt: last?.committedDate ?? null,
       feedback: [

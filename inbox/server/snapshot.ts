@@ -1,5 +1,5 @@
 import type { InboxItem, InboxSnapshot } from "../shared/model";
-import { myAction, sortReviewRequests } from "../shared/model";
+import { myAction, myStatus, sortMine, sortReviewRequests } from "../shared/model";
 import { me, myPullRequests, reviewRequests } from "./github";
 import { Triager } from "./triage";
 
@@ -32,10 +32,24 @@ async function build(): Promise<InboxSnapshot> {
   // Unanswered feedback first, then failing checks, then PRs ready to merge.
   const order = (item: InboxItem) =>
     item.reason.includes("since your last") ? 0 : item.reason === "checks failing" ? 1 : 2;
+  const allMine = sortMine(mine.map((pr) => ({ pr, needsYou: myAction(pr, login) !== null }))).map(
+    ({ pr }): InboxItem => ({
+      repo: pr.repo,
+      number: pr.number,
+      title: pr.title,
+      url: pr.url,
+      author: login,
+      reason: myStatus(pr, login),
+      since: pr.updatedAt,
+      kind: "mine",
+      slackUrl: null,
+    }),
+  );
   return {
     ...sorted,
     mine: actions.sort((a, b) => order(a) - order(b) || a.since.localeCompare(b.since)),
     quietMine: mine.length - actions.length,
+    allMine,
     triage: { pending: triage.pending, error: triage.error },
     fetchedAt: new Date(now).toISOString(),
   };

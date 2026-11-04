@@ -2,7 +2,13 @@
 
 A PR inbox for [Paseo](https://github.com/getpaseo/paseo): what to review first, what your own PRs need from you, and a fast way to read a PR file by file.
 
-The pull requests that need you, in one screen, from **PR inbox** in the sidebar. The badge counts what to look at first plus your own PRs that need you.
+The pull requests that need you, in one screen, from **PR inbox** in the sidebar. The badge counts what to look at first plus your own PRs that need you. It has three tabs:
+
+- **Needs you**: the sections below.
+- **My PRs**: every open PR of yours, drafts included, each with where it stands; the ones that need you come first.
+- **Find a PR**: search PR titles in your orgs, or paste a link, `owner/repo#123` or `#123`, plus the PRs you've recently opened for review. A result opens straight into the review screen.
+
+The **Needs you** tab:
 
 - **Look at these first**: review requests labelled High Priority; ones that look security-related (auth, access, tokens, 2FA, permissions, rate limits, leaks) unless marked Low Priority; and Medium Priority ones that have waited on you more than 5 days with nobody else having approved them. Each says why it's there.
 - **Your PRs**: only the ones where you have something to do. That's feedback from a person left after your last push or reply, failing checks, or an approval that's ready to merge. Bots don't count as feedback, and drafts only show for feedback.

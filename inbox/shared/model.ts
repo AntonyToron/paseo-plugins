@@ -23,6 +23,8 @@ export const inboxSnapshot = z.object({
   stale: z.array(inboxItem),
   /** Your open PRs with nothing for you to do right now. */
   quietMine: z.number(),
+  /** Every open PR of yours, drafts included, each with where it stands. */
+  allMine: z.array(inboxItem),
   /** Claude's background check: how far it has got, and why it stopped if it did. */
   triage: z.object({ pending: z.number(), error: z.string().nullable() }),
   /** When GitHub was last asked. */
@@ -221,6 +223,7 @@ export interface MyPullRequest {
   url: string;
   isDraft: boolean;
   reviewDecision: string | null;
+  updatedAt: string;
   checks: "SUCCESS" | "FAILURE" | "ERROR" | "PENDING" | "EXPECTED" | null;
   lastCommitAt: string | null;
   /** Reviews and conversation comments, from everyone. */
@@ -272,4 +275,36 @@ export function myAction(pr: MyPullRequest, me: string): { reason: string; since
   if (pr.reviewDecision === "APPROVED" && pr.checks === "SUCCESS")
     return { reason: "approved, ready to merge", since: lastActedAt };
   return null;
+}
+
+/** Where one of your PRs stands in a few words: what you owe it first, else its review and checks. */
+export function myStatus(pr: MyPullRequest, me: string): string {
+  const action = myAction(pr, me);
+  if (action) return action.reason;
+  const parts = [
+    pr.isDraft ? "draft" : null,
+    pr.checks === "FAILURE" || pr.checks === "ERROR"
+      ? "checks failing"
+      : pr.checks === "PENDING"
+        ? "checks running"
+        : null,
+    pr.reviewDecision === "APPROVED"
+      ? "approved"
+      : pr.reviewDecision === "CHANGES_REQUESTED"
+        ? "changes requested"
+        : pr.isDraft
+          ? null
+          : "waiting on review",
+  ];
+  return parts.filter(Boolean).join(" · ");
+}
+
+/** Your PRs that need you first, then the rest of the ready ones, then drafts; newest first within each. */
+export function sortMine<T extends { pr: MyPullRequest; needsYou: boolean }>(
+  entries: readonly T[],
+): T[] {
+  const rank = (entry: T) => (entry.needsYou ? 0 : entry.pr.isDraft ? 2 : 1);
+  return [...entries].sort(
+    (a, b) => rank(a) - rank(b) || b.pr.updatedAt.localeCompare(a.pr.updatedAt),
+  );
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   myAction,
+  myStatus,
   needsTriage,
   sortReviewRequests,
   urgency,
@@ -121,10 +122,20 @@ describe("myAction", () => {
     url: "https://github.com/acme/app/pull/9",
     isDraft: false,
     reviewDecision: null,
+    updatedAt: daysAgo(1),
     checks: "SUCCESS",
     lastCommitAt: daysAgo(3),
     feedback: [],
     ...overrides,
+  });
+
+  it("sums up where each of your PRs stands", () => {
+    expect(myStatus(pr({ isDraft: true }), "me")).toBe("draft");
+    expect(myStatus(pr({ checks: "PENDING" }), "me")).toBe("checks running · waiting on review");
+    expect(myStatus(pr({ reviewDecision: "CHANGES_REQUESTED", checks: "PENDING" }), "me")).toBe(
+      "checks running · changes requested",
+    );
+    expect(myStatus(pr({ reviewDecision: "APPROVED" }), "me")).toBe("approved, ready to merge");
   });
   const from = (login: string, days: number, isBot = false) => ({
     login,

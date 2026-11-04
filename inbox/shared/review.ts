@@ -68,6 +68,28 @@ export const setFilesViewed = defineRpc({
   output: z.object({ ok: z.literal(true) }),
 });
 
+export const pullRequestCard = z.object({
+  repo: z.string(),
+  number: z.number(),
+  title: z.string(),
+  author: z.string(),
+  state: z.enum(["OPEN", "DRAFT", "MERGED", "CLOSED"]),
+  updatedAt: z.string(),
+});
+export type PullRequestCard = z.infer<typeof pullRequestCard>;
+
+export const getRecentReviews = defineRpc({
+  name: "review.recent",
+  input: z.object({}),
+  output: z.object({ recent: z.array(pullRequestCard) }),
+});
+
+export const searchReviewTargets = defineRpc({
+  name: "review.search",
+  input: z.object({ text: z.string() }),
+  output: z.object({ results: z.array(pullRequestCard) }),
+});
+
 export const resolvePullRequest = defineRpc({
   name: "review.resolve",
   /** A PR URL, or a bare number resolved against the repo checked out in cwd. */
