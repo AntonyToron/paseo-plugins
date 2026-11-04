@@ -50,7 +50,12 @@ export const getReviewFiles = defineRpc({
     url: z.string(),
     author: z.string(),
     headSha: z.string(),
+    /** Files already showing the Viewed mark you asked for, while GitHub catches up. */
     files: z.array(reviewFile),
+    /** How many marks are still on their way to GitHub. */
+    marking: z.number(),
+    /** Why the last marks GitHub refused didn't save; those files show GitHub's state again. */
+    markError: z.string().nullable(),
   }),
 });
 
@@ -65,6 +70,7 @@ export const getFileDiffs = defineRpc({
 export const setFilesViewed = defineRpc({
   name: "review.set-viewed",
   input: prRef.extend({ paths: z.array(z.string()).min(1), viewed: z.boolean() }),
+  // Returns once the marks are queued; GitHub takes a second or two per file.
   output: z.object({ ok: z.literal(true) }),
 });
 

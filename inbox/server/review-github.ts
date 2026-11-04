@@ -122,19 +122,18 @@ export async function pullRequestFiles(repo: string, number: number): Promise<Pu
   };
 }
 
-/** Sets your Viewed mark on GitHub, the same one its Files tab shows. */
+/**
+ * Sets your Viewed mark on GitHub, the same one its Files tab shows, for a few files in one
+ * request. GitHub marks a PR's files one at a time, around 1.6s each on a big PR, and answers 502
+ * past 10s, so callers keep batches small.
+ */
 export async function markViewed(pullRequestId: string, paths: readonly string[], viewed: boolean) {
   const mutation = viewed ? "markFileAsViewed" : "unmarkFileAsViewed";
-  // Batched as aliases: one request marks a whole group.
-  const BATCH = 50;
-  for (let start = 0; start < paths.length; start += BATCH) {
-    const batch = paths.slice(start, start + BATCH);
-    const fields = batch
-      .map(
-        (path, index) =>
-          `f${index}: ${mutation}(input: { pullRequestId: ${JSON.stringify(pullRequestId)}, path: ${JSON.stringify(path)} }) { clientMutationId }`,
-      )
-      .join("\n");
-    await graphql(`mutation {\n${fields}\n}`, {});
-  }
+  const fields = paths
+    .map(
+      (path, index) =>
+        `f${index}: ${mutation}(input: { pullRequestId: ${JSON.stringify(pullRequestId)}, path: ${JSON.stringify(path)} }) { clientMutationId }`,
+    )
+    .join("\n");
+  await graphql(`mutation {\n${fields}\n}`, {});
 }

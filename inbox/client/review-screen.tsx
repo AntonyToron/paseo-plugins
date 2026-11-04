@@ -1,4 +1,4 @@
-import type { PluginTheme } from "@getpaseo/plugin";
+import type { PluginTheme, RpcOutput } from "@getpaseo/plugin";
 import { openExternalUrl, useRpc, type PluginScreenProps } from "@getpaseo/plugin/client";
 import { FlatList, useToast } from "@getpaseo/plugin/client/react-native";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -71,13 +71,9 @@ function estimateRowHeight(row: Row, codeWidth: number): number {
   }
 }
 
-type FilesResult = {
-  title: string;
-  url: string;
-  author: string;
-  headSha: string;
-  files: ReviewFile[];
-};
+type FilesResult = RpcOutput<typeof getReviewFiles>;
+// While marks are on their way to GitHub, poll to show progress.
+const MARKING_POLL_MS = 3_000;
 type Diffs = Record<string, { diff: string; truncated: boolean }>;
 
 /** A run of files under one heading in the scroll and the tree. */
@@ -256,7 +252,7 @@ function useReviewFiles(repo: string, number: number) {
   return useQuery({
     queryKey: reviewKeys.files(repo, number),
     queryFn: () => load({ repo, number }),
-    refetchInterval: 120_000,
+    refetchInterval: (query) => (query.state.data?.marking ? MARKING_POLL_MS : 120_000),
   });
 }
 
@@ -289,6 +285,8 @@ function useSetViewed(repo: string, number: number) {
       if (context?.before) queryClient.setQueryData(key, context.before);
       toast.error(`GitHub didn't save that: ${error.message}`);
     },
+    // Picks up the queue's progress, which also starts the faster polling.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: key }),
   });
 }
 
@@ -684,6 +682,18 @@ export function ReviewScreen(props: PluginScreenProps) {
                 files viewed on GitHub ({skippedUnviewed.length})
               </Text>
             </Pressable>
+          ) : null}
+          {data.marking ? (
+            <Text style={styles.meta}>
+              Saving Viewed marks to GitHub, {data.marking} to go. GitHub takes a second or two per
+              file.
+            </Text>
+          ) : null}
+          {data.markError ? (
+            <Text style={styles.error}>
+              GitHub didn't save some Viewed marks ({data.markError}); those files show GitHub's
+              state again.
+            </Text>
           ) : null}
           {sortNote ? <Text style={styles.meta}>{sortNote}</Text> : null}
           {diffs.errors.length ? <Text style={styles.error}>{diffs.errors[0]}</Text> : null}

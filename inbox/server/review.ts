@@ -6,12 +6,14 @@ import type {
   resolvePullRequest,
   setFilesViewed,
 } from "../shared/review";
-import { markViewed, pullRequestFiles } from "./review-github";
+import { pullRequestFiles } from "./review-github";
 import { readRecent, rememberOpened } from "./review-home";
 import { fetchPullRequest, fileDiffs, repoForCwd } from "./review-mirror";
 import { Sorter } from "./review-sort";
+import { ViewedQueue } from "./review-viewed";
 
 const sorter = new Sorter();
+const viewedQueue = new ViewedQueue();
 
 /** Claude's reading order for the PR's source files; the first ask starts it in the background. */
 export async function reviewFileSort({ repo, number }: RpcInput<typeof getFileSort>) {
@@ -56,7 +58,12 @@ async function loadFiles(repo: string, number: number) {
 }
 
 export async function listReviewFiles({ repo, number }: RpcInput<typeof getReviewFiles>) {
-  const pr = await loadFiles(repo, number);
+  // While marks are saving, the screen polls for progress; reading every page of files from
+  // GitHub each time would only slow GitHub's saving down, and the queue knows the marks.
+  const pr = viewedQueue.busy(keyOf(repo, number))
+    ? await current(repo, number)
+    : await loadFiles(repo, number);
+  if (!viewedQueue.busy(keyOf(repo, number))) viewedQueue.forgetSaved(keyOf(repo, number));
   await rememberOpened({
     repo,
     number,
@@ -65,7 +72,13 @@ export async function listReviewFiles({ repo, number }: RpcInput<typeof getRevie
     state: pr.state,
     updatedAt: pr.updatedAt,
   });
-  return { title: pr.title, url: pr.url, author: pr.author, headSha: pr.headSha, files: pr.files };
+  return {
+    title: pr.title,
+    url: pr.url,
+    author: pr.author,
+    headSha: pr.headSha,
+    ...viewedQueue.overlay(keyOf(repo, number), pr.files),
+  };
 }
 
 export const recentReviews = async () => ({ recent: await readRecent() });
@@ -84,7 +97,7 @@ export async function setReviewFilesViewed({
   viewed,
 }: RpcInput<typeof setFilesViewed>) {
   const pr = await current(repo, number);
-  await markViewed(pr.id, paths, viewed);
+  viewedQueue.enqueue(keyOf(repo, number), pr.id, paths, viewed);
   return { ok: true as const };
 }
 
