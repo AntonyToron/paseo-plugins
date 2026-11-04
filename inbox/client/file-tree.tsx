@@ -1,8 +1,10 @@
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Icon } from "@getpaseo/plugin/client/react-native";
+import { ScrollView, Text, View } from "react-native";
 import { folderRows } from "../shared/file-tree";
 import type { ReviewFile } from "../shared/review";
+import { HoverPressable } from "./hover";
 
 export interface TreeSection {
   id: string;
@@ -49,11 +51,30 @@ function createTreeStyles({ colors }: PluginTheme, compact: boolean) {
       flexDirection: "row" as const,
       alignItems: "center" as const,
       gap: 6,
-      paddingVertical: 3,
+      paddingVertical: 4,
       paddingRight: 6,
       borderRadius: 5,
     },
+    rowHovered: { backgroundColor: colors.surface1 },
     rowActive: { backgroundColor: colors.surface2 },
+    // The file in view: a bar at the row's left edge, like an editor's open tab.
+    activeBar: {
+      position: "absolute" as const,
+      left: 0,
+      top: 4,
+      bottom: 4,
+      width: 2,
+      borderRadius: 1,
+      backgroundColor: colors.accent,
+    },
+    modeHovered: { backgroundColor: colors.surface1 },
+    linkHovered: { textDecorationLine: "underline" as const },
+    comments: {
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+      gap: 3,
+    },
+    commentCount: { fontSize: 11, fontWeight: "600" as const, color: colors.statusWarning },
     chevron: { fontSize: 10, width: 10, color: colors.foregroundMuted },
     dirName: { flex: 1, fontSize: 12, color: colors.foreground },
     name: { flex: 1, fontSize: 12, color: colors.foreground },
@@ -71,29 +92,45 @@ function FileRow({
   depth,
   showDir,
   active,
+  comments,
   styles,
+  theme,
   onJump,
 }: {
   file: ReviewFile;
   depth: number;
   showDir: boolean;
   active: boolean;
+  comments: number;
   styles: TreeStyles;
+  theme: PluginTheme;
   onJump(file: ReviewFile): void;
 }) {
   const dir = showDir ? dirName(file.path) : "";
   return (
-    <Pressable
+    <HoverPressable
       accessibilityRole="button"
       onPress={() => onJump(file)}
-      style={[styles.row, { paddingLeft: 6 + depth * INDENT + 16 }, active && styles.rowActive]}
+      style={({ hovered }) => [
+        styles.row,
+        { paddingLeft: 6 + depth * INDENT + 16 },
+        hovered && styles.rowHovered,
+        active && styles.rowActive,
+      ]}
     >
+      {active ? <View style={styles.activeBar} /> : null}
       <Text style={[styles.name, isViewed(file) && styles.viewed]} numberOfLines={1}>
         {baseName(file.path)}
         {dir ? <Text style={styles.dirHint}>{`  ${dir}`}</Text> : null}
       </Text>
+      {comments ? (
+        <View style={styles.comments}>
+          <Icon name="MessageSquare" size={11} color={theme.colors.statusWarning} />
+          <Text style={styles.commentCount}>{comments}</Text>
+        </View>
+      ) : null}
       <Text style={styles.stat}>{file.additions + file.deletions}</Text>
-    </Pressable>
+    </HoverPressable>
   );
 }
 
@@ -106,6 +143,7 @@ export function FileTree({
   sections,
   sorted,
   activePath,
+  commentCounts,
   theme,
   compact,
   onJump,
@@ -113,6 +151,7 @@ export function FileTree({
   sections: readonly TreeSection[];
   sorted: boolean;
   activePath: string | null;
+  commentCounts: ReadonlyMap<string, number>;
   theme: PluginTheme;
   compact: boolean;
   onJump(file: ReviewFile): void;
@@ -140,6 +179,20 @@ export function FileTree({
       return next;
     });
 
+  const fileRow = (file: ReviewFile, depth: number, showDir: boolean) => (
+    <FileRow
+      key={file.path}
+      file={file}
+      depth={depth}
+      showDir={showDir}
+      active={file.path === activePath}
+      comments={commentCounts.get(file.path) ?? 0}
+      styles={styles}
+      theme={theme}
+      onJump={onJump}
+    />
+  );
+
   return (
     <ScrollView style={styles.tree} contentContainerStyle={styles.content}>
       {sorted ? (
@@ -150,47 +203,52 @@ export function FileTree({
               ["order", "Reading order"],
             ] as const
           ).map(([value, label]) => (
-            <Pressable
+            <HoverPressable
               key={value}
               accessibilityRole="tab"
               accessibilityState={{ selected: shown === value }}
               onPress={() => setMode(value)}
-              style={[styles.mode, shown === value && styles.modeActive]}
+              style={({ hovered }) => [
+                styles.mode,
+                hovered && styles.modeHovered,
+                shown === value && styles.modeActive,
+              ]}
             >
               <Text style={[styles.modeLabel, shown === value && styles.modeLabelActive]}>
                 {label}
               </Text>
-            </Pressable>
+            </HoverPressable>
           ))}
         </View>
       ) : null}
       {shown === "folders"
         ? rows.map((row) =>
             row.kind === "dir" ? (
-              <Pressable
+              <HoverPressable
                 key={`dir:${row.path}`}
                 accessibilityRole="button"
                 onPress={() => toggleDir(row.path)}
-                style={[styles.row, { paddingLeft: 6 + row.depth * INDENT }]}
+                style={({ hovered }) => [
+                  styles.row,
+                  { paddingLeft: 6 + row.depth * INDENT },
+                  hovered && styles.rowHovered,
+                ]}
               >
                 <Text style={styles.chevron}>{row.open ? "▾" : "▸"}</Text>
+                <Icon
+                  name={row.open ? "FolderOpen" : "Folder"}
+                  size={13}
+                  color={theme.colors.foregroundMuted}
+                />
                 <Text style={styles.dirName} numberOfLines={1}>
                   {row.name}
                 </Text>
                 <Text style={styles.stat}>
                   {row.fileCount} {row.fileCount === 1 ? "file" : "files"}
                 </Text>
-              </Pressable>
+              </HoverPressable>
             ) : (
-              <FileRow
-                key={row.file.path}
-                file={row.file}
-                depth={row.depth}
-                showDir={false}
-                active={row.file.path === activePath}
-                styles={styles}
-                onJump={onJump}
-              />
+              fileRow(row.file, row.depth, false)
             ),
           )
         : sections.map((section) => (
@@ -199,34 +257,26 @@ export function FileTree({
                 {section.label.toUpperCase()} · {section.files.length}
                 {section.open ? "" : " · folded"}
               </Text>
-              {listed(section)
-                ? section.files.map((file) => (
-                    <FileRow
-                      key={file.path}
-                      file={file}
-                      depth={-1}
-                      showDir
-                      active={file.path === activePath}
-                      styles={styles}
-                      onJump={onJump}
-                    />
-                  ))
-                : null}
+              {listed(section) ? section.files.map((file) => fileRow(file, -1, true)) : null}
             </View>
           ))}
       {foldedCount ? (
-        <Pressable
+        <HoverPressable
           accessibilityRole="button"
           onPress={() => setShowFolded(!showFolded)}
           style={styles.foldedNote}
         >
-          <Text style={styles.stat}>
-            {showFolded
-              ? "Hide the folded sections' files"
-              : `${foldedCount} ${foldedCount === 1 ? "file" : "files"} in folded sections not shown. `}
-            {showFolded ? null : <Text style={styles.link}>Show</Text>}
-          </Text>
-        </Pressable>
+          {({ hovered }) => (
+            <Text style={styles.stat}>
+              {showFolded
+                ? "Hide the folded sections' files"
+                : `${foldedCount} ${foldedCount === 1 ? "file" : "files"} in folded sections not shown. `}
+              {showFolded ? null : (
+                <Text style={[styles.link, hovered && styles.linkHovered]}>Show</Text>
+              )}
+            </Text>
+          )}
+        </HoverPressable>
       ) : null}
     </ScrollView>
   );

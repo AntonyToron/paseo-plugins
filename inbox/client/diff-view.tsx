@@ -1,5 +1,6 @@
 import type { PluginTheme } from "@getpaseo/plugin";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
+import { HoverPressable } from "./hover";
 import type { DiffLine } from "../shared/review";
 import type { Segment } from "./decorate";
 
@@ -86,7 +87,22 @@ export function createDiffStyles({ colors }: PluginTheme) {
       return role ? palette[role] : undefined;
     },
     line: { flexDirection: "row" as const },
-    gutter: { flexDirection: "row" as const, flexShrink: 0 },
+    gutter: { flexDirection: "row" as const, flexShrink: 0, cursor: "pointer" as const },
+    lineHovered: { backgroundColor: "rgba(56, 139, 253, 0.08)" },
+    signColumn: { width: 18 },
+    // GitHub's blue "+" that appears on the line you point at.
+    addComment: {
+      position: "absolute" as const,
+      top: 1,
+      left: 0,
+      width: 18,
+      height: 18,
+      borderRadius: 4,
+      backgroundColor: "#1f6feb",
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+    },
+    addCommentLabel: { color: "#ffffff", fontSize: 14, lineHeight: 16, fontWeight: "700" as const },
     number: {
       fontFamily: MONO,
       fontSize: 12,
@@ -139,10 +155,13 @@ export function DiffLineRow({
   line,
   segments,
   styles,
+  onComment,
 }: {
   line: DiffLine;
   segments: readonly Segment[] | null;
   styles: DiffStyles;
+  /** Starts a comment on this line; absent for lines that can't take one. */
+  onComment?: () => void;
 }) {
   if (line.kind === "hunk") {
     return (
@@ -158,14 +177,52 @@ export function DiffLineRow({
   const tint = line.kind === "add" ? TINTS.add : line.kind === "remove" ? TINTS.remove : null;
   const changedTint = line.kind === "context" ? undefined : CHANGED[line.kind];
   return (
-    <View style={[styles.line, tint ? { backgroundColor: tint.line } : null]}>
-      <View style={[styles.gutter, tint ? { backgroundColor: tint.gutter } : null]}>
-        <Text style={styles.number}>{line.oldLine ?? ""}</Text>
-        <Text style={styles.number}>{line.newLine ?? ""}</Text>
-      </View>
-      <Text style={[styles.sign, tint ? { color: tint.sign } : null]}>
-        {line.kind === "add" ? "+" : line.kind === "remove" ? "−" : ""}
-      </Text>
+    // No onPress: the line only tracks the pointer, so its code stays selectable.
+    <HoverPressable
+      focusable={false}
+      style={({ hovered }) => [
+        styles.line,
+        tint ? { backgroundColor: tint.line } : null,
+        hovered && onComment ? styles.lineHovered : null,
+      ]}
+    >
+      {({ hovered }) => (
+        <>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Comment on this line"
+            disabled={!onComment}
+            onPress={onComment}
+            style={[styles.gutter, tint ? { backgroundColor: tint.gutter } : null]}
+          >
+            <Text style={styles.number}>{line.oldLine ?? ""}</Text>
+            <Text style={styles.number}>{line.newLine ?? ""}</Text>
+          </Pressable>
+          <View style={styles.signColumn}>
+            <Text style={[styles.sign, tint ? { color: tint.sign } : null]}>
+              {line.kind === "add" ? "+" : line.kind === "remove" ? "−" : ""}
+            </Text>
+            {/* Always mounted and only faded in: hover can end as a press starts, and a button
+                that unmounts then never sees the click. */}
+            {onComment ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Comment on this line"
+                onPress={onComment}
+                style={[styles.addComment, { opacity: hovered ? 1 : 0 }]}
+              >
+                <Text style={styles.addCommentLabel}>+</Text>
+              </Pressable>
+            ) : null}
+          </View>
+          {renderCode()}
+        </>
+      )}
+    </HoverPressable>
+  );
+
+  function renderCode() {
+    return (
       <Text style={styles.code} selectable>
         {segments?.length
           ? segments.map((segment, index) => (
@@ -184,6 +241,6 @@ export function DiffLineRow({
             ))
           : line.text || " "}
       </Text>
-    </View>
-  );
+    );
+  }
 }

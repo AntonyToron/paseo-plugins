@@ -22,12 +22,26 @@ async function recentAgents(paseo: Paseo): Promise<Agent[]> {
 
 /**
  * Starts a review the way you start them by hand: a new workspace on the repo's Paseo project
- * whose first message is `/pr-review <url>`. It copies the checkout, model, mode and thinking
- * setting of your most recent review chat, so it lands where your reviews usually do.
+ * whose first message is `/pr-review <url>`.
  */
 export async function startReviewChat(
   { repo, number, title, url }: RpcInput<typeof startReview>,
   { paseo }: PluginHandlerContext,
+) {
+  return startChatInRepo(paseo, {
+    repo,
+    title: `Review PR #${number} ${title}`,
+    prompt: `/pr-review ${url}`,
+  });
+}
+
+/**
+ * A new workspace and chat on the repo's Paseo project. It copies the checkout, model, mode and
+ * thinking setting of your most recent review chat, so it lands where your reviews usually do.
+ */
+export async function startChatInRepo(
+  paseo: Paseo,
+  { repo, title, prompt }: { repo: string; title: string; prompt: string },
 ) {
   const key = `remote:github.com/${repo}`.toLowerCase();
   const { projects } = await paseo.projects.list();
@@ -55,9 +69,8 @@ export async function startReviewChat(
   const project = (template && inProject(template)) ?? matching[0];
   if (!project) throw new Error(`No Paseo project points at ${repo}.`);
 
-  const prompt = `/pr-review ${url}`;
   const workspace = await paseo.workspaces.create({
-    title: `Review PR #${number} ${title}`.slice(0, MAX_TITLE_CHARS),
+    title: title.slice(0, MAX_TITLE_CHARS),
     // Tells the daemon an agent follows, so the workspace doesn't sit there looking idle.
     firstAgentContext: { prompt, attachments: [] },
     source: { kind: "directory", path: project.projectRootPath, projectId: project.projectId },

@@ -29,7 +29,18 @@ import {
 } from "../shared/review";
 import { decorateFile } from "./decorate";
 import { createDiffStyles, DiffLineRow, type DiffStyles } from "./diff-view";
+import { anchorKey, type CommentAnchor, type PendingComment } from "../shared/comments";
+import {
+  CommentCard,
+  CommentComposer,
+  createCommentStyles,
+  SendDialog,
+  useComments,
+  useDeleteComment,
+  useSaveComment,
+} from "./comments";
 import { FileTree } from "./file-tree";
+import { HoverPressable } from "./hover";
 import { useRowMetrics } from "./row-metrics";
 
 const reviewKeys = {
@@ -44,6 +55,7 @@ const reviewKeys = {
 const DIFF_BATCH = 60;
 const SORT_POLL_MS = 3_000;
 const NO_SORT: SortedFile[] = [];
+const NO_COMMENTS: PendingComment[] = [];
 const JUMP_SETTLE_MS = [0, 120, 300, 600];
 // Estimates for rows not drawn yet; drawn rows use their measured height. Code is 12px monospace
 // with a 20px line height, so a line's wrapped height follows from its length.
@@ -61,6 +73,10 @@ function estimateRowHeight(row: Row, codeWidth: number): number {
       return row.summary ? 62 : 46;
     case "status":
       return 41;
+    case "comment":
+      return 64 + LINE_HEIGHT * Math.ceil(row.comment.body.length / 90);
+    case "composer":
+      return 150;
     case "line": {
       if (row.line.kind === "hunk") return LINE_HEIGHT;
       if (row.line.kind === "meta") return 24;
@@ -128,10 +144,22 @@ type Row =
       path: string;
       fileLines: readonly DiffLine[];
       index: number;
+      anchor: CommentAnchor | null;
     }
+  | { kind: "comment"; key: string; comment: PendingComment }
+  | { kind: "composer"; key: string; anchor: CommentAnchor; editing: PendingComment | null }
   | { kind: "status"; key: string; text: string };
 
 const isViewed = (file: ReviewFile) => file.viewed === "VIEWED";
+
+/** Where a comment on this line would sit: removed lines by their old number, the rest by their new one. */
+function lineAnchor(path: string, line: DiffLine): CommentAnchor | null {
+  if (line.kind === "remove" && line.oldLine !== null)
+    return { path, side: "old", line: line.oldLine, lineText: line.text };
+  if ((line.kind === "add" || line.kind === "context") && line.newLine !== null)
+    return { path, side: "new", line: line.newLine, lineText: line.text };
+  return null;
+}
 
 const SKIPPED_NAMES: Record<string, string> = {
   trivial: "trivial",
@@ -170,6 +198,36 @@ function createStyles({ colors }: PluginTheme, compact: boolean) {
     },
     groupLabel: { fontSize: 12, fontWeight: "600" as const, color: colors.foregroundMuted },
     link: { fontSize: 12, color: colors.accent },
+    linkHovered: { textDecorationLine: "underline" as const },
+    headerActions: {
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+      justifyContent: "space-between" as const,
+      gap: 12,
+      marginTop: 4,
+    },
+    sendButton: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 6,
+      backgroundColor: colors.accent,
+    },
+    sendButtonHovered: { opacity: 0.88 },
+    sendLabel: { fontSize: 12, fontWeight: "600" as const, color: colors.accentForeground },
+    fileHeaderHovered: { backgroundColor: colors.surface2 },
+    chip: {
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 5,
+      borderWidth: 1,
+      borderColor: "transparent",
+    },
+    chipHovered: { borderColor: colors.border, backgroundColor: colors.surface1 },
+    commentCount: {
+      fontSize: 11,
+      fontWeight: "600" as const,
+      color: colors.statusWarning,
+    },
     fileHeader: {
       flexDirection: "row" as const,
       alignItems: "center" as const,
@@ -356,17 +414,17 @@ function ViewedToggle({
   onToggle(): void;
 }) {
   return (
-    <Pressable
+    <HoverPressable
       accessibilityRole="checkbox"
       accessibilityState={{ checked: viewed }}
       onPress={onToggle}
-      style={styles.viewedToggle}
+      style={({ hovered }) => [styles.viewedToggle, hovered && styles.chipHovered]}
     >
       <View style={[styles.viewedBox, viewed && styles.viewedBoxOn]}>
         {viewed ? <Text style={styles.viewedTick}>✓</Text> : null}
       </View>
       <Text style={styles.viewedLabel}>Viewed</Text>
-    </Pressable>
+    </HoverPressable>
   );
 }
 
@@ -375,6 +433,7 @@ function FileHeader({
   summary,
   expanded,
   prUrl,
+  commentCount,
   styles,
   onToggleExpanded,
   onToggleViewed,
@@ -383,16 +442,21 @@ function FileHeader({
   summary: string | null;
   expanded: boolean;
   prUrl: string;
+  commentCount: number;
   styles: Styles;
   onToggleExpanded(): void;
   onToggleViewed(): void;
 }) {
   const dir = dirName(file.path);
   return (
-    <Pressable
+    <HoverPressable
       accessibilityRole="button"
       onPress={onToggleExpanded}
-      style={[styles.fileHeader, !expanded && styles.fileHeaderCollapsed]}
+      style={({ hovered }) => [
+        styles.fileHeader,
+        hovered && styles.fileHeaderHovered,
+        !expanded && styles.fileHeaderCollapsed,
+      ]}
     >
       <Text style={styles.chevron}>{expanded ? "▾" : "▸"}</Text>
       <View style={styles.fileTitle}>
@@ -409,16 +473,22 @@ function FileHeader({
       {file.viewed === "DISMISSED" ? (
         <Text style={styles.changed}>CHANGED SINCE VIEWED</Text>
       ) : null}
+      {commentCount ? (
+        <Text style={styles.commentCount}>
+          {commentCount} {commentCount === 1 ? "comment" : "comments"}
+        </Text>
+      ) : null}
       <Text style={styles.added}>+{file.additions}</Text>
       <Text style={styles.removed}>−{file.deletions}</Text>
-      <Pressable
+      <HoverPressable
         accessibilityRole="link"
         onPress={() => void githubFileUrl(prUrl, file.path).then(openExternalUrl)}
+        style={({ hovered }) => [styles.chip, hovered && styles.chipHovered]}
       >
         <Text style={styles.viewedLabel}>GitHub</Text>
-      </Pressable>
+      </HoverPressable>
       <ViewedToggle viewed={isViewed(file)} styles={styles} onToggle={onToggleViewed} />
-    </Pressable>
+    </HoverPressable>
   );
 }
 
@@ -439,6 +509,31 @@ export function ReviewScreen(props: PluginScreenProps) {
   const [overrides, setOverrides] = useState<ReadonlyMap<string, boolean>>(new Map());
   const [activePath, setActivePath] = useState<string | null>(null);
   const listRef = useRef<NativeFlatList<Row>>(null);
+  const toast = useToast();
+  const commentStyles = useMemo(() => createCommentStyles(props.theme), [props.theme]);
+  const comments = useComments(repo, number);
+  const saveComment = useSaveComment(repo, number);
+  const deleteComment = useDeleteComment(repo, number);
+  // The comment being written or edited: where it goes, and its text so far.
+  const [draft, setDraft] = useState<{
+    anchor: CommentAnchor;
+    editing: PendingComment | null;
+    body: string;
+  } | null>(null);
+  const [sendOpen, setSendOpen] = useState(false);
+  const pendingComments = comments.data?.comments ?? NO_COMMENTS;
+  const commentsByFile = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const comment of pendingComments)
+      counts.set(comment.path, (counts.get(comment.path) ?? 0) + 1);
+    return counts;
+  }, [pendingComments]);
+  const commentsAt = useMemo(() => {
+    const byAnchor = new Map<string, PendingComment[]>();
+    for (const comment of pendingComments)
+      byAnchor.set(anchorKey(comment), [...(byAnchor.get(anchorKey(comment)) ?? []), comment]);
+    return byAnchor;
+  }, [pendingComments]);
 
   const sorted = sort.data?.status === "ready" ? sort.data.files : NO_SORT;
   const sections = useMemo(() => buildSections(data?.files ?? [], sorted), [data, sorted]);
@@ -485,7 +580,8 @@ export function ReviewScreen(props: PluginScreenProps) {
           });
           continue;
         }
-        diff.lines.forEach((line, index) =>
+        diff.lines.forEach((line, index) => {
+          const anchor = lineAnchor(file.path, line);
           out.push({
             kind: "line",
             key: `line:${file.path}:${index}`,
@@ -493,8 +589,19 @@ export function ReviewScreen(props: PluginScreenProps) {
             path: file.path,
             fileLines: diff.lines,
             index,
-          }),
-        );
+            anchor,
+          });
+          if (!anchor) return;
+          const at = anchorKey(anchor);
+          for (const comment of commentsAt.get(at) ?? [])
+            out.push(
+              draft?.editing?.id === comment.id
+                ? { kind: "composer", key: `composer:${comment.id}`, anchor, editing: comment }
+                : { kind: "comment", key: `comment:${comment.id}`, comment },
+            );
+          if (draft && !draft.editing && anchorKey(draft.anchor) === at)
+            out.push({ kind: "composer", key: `composer:${at}`, anchor, editing: null });
+        });
         if (diff.truncated)
           out.push({
             kind: "status",
@@ -504,7 +611,19 @@ export function ReviewScreen(props: PluginScreenProps) {
       }
     }
     return out;
-  }, [sections, isOpen, isExpanded, summaries, diffs.parsed, diffs.pending]);
+    // The draft's text isn't a dependency: typing shouldn't rebuild every row.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    sections,
+    isOpen,
+    isExpanded,
+    summaries,
+    diffs.parsed,
+    diffs.pending,
+    commentsAt,
+    draft?.anchor,
+    draft?.editing,
+  ]);
 
   const [listWidth, setListWidth] = useState(0);
   const estimate = useCallback(
@@ -603,21 +722,27 @@ export function ReviewScreen(props: PluginScreenProps) {
             <Text style={styles.groupLabel}>
               {item.section.label} · {files.length} files · {lines.toLocaleString()} lines
             </Text>
-            <Pressable
+            <HoverPressable
               accessibilityRole="button"
               onPress={() =>
                 setSectionOverrides((current) => new Map(current).set(item.section.id, !item.open))
               }
             >
-              <Text style={styles.link}>{item.open ? "Fold" : "Show"}</Text>
-            </Pressable>
+              {({ hovered }) => (
+                <Text style={[styles.link, hovered && styles.linkHovered]}>
+                  {item.open ? "Fold" : "Show"}
+                </Text>
+              )}
+            </HoverPressable>
             {unviewed.length ? (
-              <Pressable
+              <HoverPressable
                 accessibilityRole="button"
                 onPress={() => setViewed.mutate({ paths: unviewed, viewed: true })}
               >
-                <Text style={styles.link}>Mark all viewed</Text>
-              </Pressable>
+                {({ hovered }) => (
+                  <Text style={[styles.link, hovered && styles.linkHovered]}>Mark all viewed</Text>
+                )}
+              </HoverPressable>
             ) : null}
           </View>
         );
@@ -629,6 +754,7 @@ export function ReviewScreen(props: PluginScreenProps) {
             summary={item.summary}
             expanded={item.expanded}
             prUrl={data.url}
+            commentCount={commentsByFile.get(item.file.path) ?? 0}
             styles={styles}
             onToggleExpanded={() =>
               setOverrides((current) => new Map(current).set(item.file.path, !item.expanded))
@@ -636,13 +762,48 @@ export function ReviewScreen(props: PluginScreenProps) {
             onToggleViewed={() => toggleViewed(item.file)}
           />
         );
-      case "line":
+      case "line": {
+        const { anchor } = item;
         return (
           <View style={styles.body}>
             <DiffLineRow
               line={item.line}
               segments={decorateFile(item.fileLines, item.path)[item.index] ?? null}
               styles={diffStyles}
+              onComment={anchor ? () => setDraft({ anchor, editing: null, body: "" }) : undefined}
+            />
+          </View>
+        );
+      }
+      case "comment":
+        return (
+          <View style={styles.body}>
+            <CommentCard
+              comment={item.comment}
+              styles={commentStyles}
+              onEdit={() =>
+                setDraft({ anchor: item.comment, editing: item.comment, body: item.comment.body })
+              }
+              onDelete={() => deleteComment.mutate(item.comment.id)}
+            />
+          </View>
+        );
+      case "composer":
+        return (
+          <View style={styles.body}>
+            <CommentComposer
+              body={draft?.body ?? ""}
+              editing={Boolean(item.editing)}
+              saving={saveComment.isPending}
+              styles={commentStyles}
+              onChangeBody={(body) => setDraft((current) => current && { ...current, body })}
+              onCancel={() => setDraft(null)}
+              onSave={(body) =>
+                saveComment.mutate(
+                  { id: item.editing?.id ?? null, anchor: item.anchor, body },
+                  { onSuccess: () => setDraft(null) },
+                )
+              }
             />
           </View>
         );
@@ -657,6 +818,7 @@ export function ReviewScreen(props: PluginScreenProps) {
         sections={treeSections}
         sorted={sorted.length > 0}
         activePath={activePath}
+        commentCounts={commentsByFile}
         theme={props.theme}
         compact={props.layout.compact}
         onJump={jumpTo}
@@ -671,18 +833,39 @@ export function ReviewScreen(props: PluginScreenProps) {
             <Text style={styles.added}>+{additions.toLocaleString()}</Text>{" "}
             <Text style={styles.removed}>−{deletions.toLocaleString()}</Text> · {viewedCount} viewed
           </Text>
-          {skippedUnviewed.length ? (
-            <Pressable
-              accessibilityRole="button"
-              disabled={setViewed.isPending}
-              onPress={() => setViewed.mutate({ paths: skippedUnviewed, viewed: true })}
-            >
-              <Text style={styles.link}>
-                Mark {listWords(skipped.map((section) => SKIPPED_NAMES[section.id] ?? section.id))}{" "}
-                files viewed on GitHub ({skippedUnviewed.length})
-              </Text>
-            </Pressable>
-          ) : null}
+          <View style={styles.headerActions}>
+            {skippedUnviewed.length ? (
+              <HoverPressable
+                accessibilityRole="button"
+                disabled={setViewed.isPending}
+                onPress={() => setViewed.mutate({ paths: skippedUnviewed, viewed: true })}
+              >
+                {({ hovered }) => (
+                  <Text style={[styles.link, hovered && styles.linkHovered]}>
+                    Mark{" "}
+                    {listWords(skipped.map((section) => SKIPPED_NAMES[section.id] ?? section.id))}{" "}
+                    files viewed on GitHub ({skippedUnviewed.length})
+                  </Text>
+                )}
+              </HoverPressable>
+            ) : (
+              <View />
+            )}
+            {pendingComments.length ? (
+              <HoverPressable
+                accessibilityRole="button"
+                onPress={() => setSendOpen(true)}
+                style={({ hovered }) => [styles.sendButton, hovered && styles.sendButtonHovered]}
+              >
+                <Text style={styles.sendLabel}>
+                  Send {pendingComments.length} pending{" "}
+                  {pendingComments.length === 1 ? "comment" : "comments"}
+                </Text>
+              </HoverPressable>
+            ) : (
+              <Text style={styles.meta}>Click a line number to leave a comment for a chat.</Text>
+            )}
+          </View>
           {data.marking ? (
             <Text style={styles.meta}>
               Saving Viewed marks to GitHub, {data.marking} to go. GitHub takes a second or two per
@@ -717,6 +900,23 @@ export function ReviewScreen(props: PluginScreenProps) {
           }}
         />
       </View>
+      <SendDialog
+        repo={repo}
+        number={number}
+        url={data.url}
+        title={data.title}
+        comments={pendingComments}
+        open={sendOpen}
+        styles={commentStyles}
+        onClose={() => setSendOpen(false)}
+        onSent={(agentId, sent) => {
+          setSendOpen(false);
+          toast.show(`Sent ${sent} ${sent === 1 ? "comment" : "comments"} to the chat.`, {
+            variant: "success",
+          });
+          props.navigation?.openAgent({ agentId });
+        }}
+      />
     </View>
   );
 }

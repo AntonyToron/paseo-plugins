@@ -27,6 +27,7 @@ Priority comes from the repo's **High / Medium / Low Priority** labels. Everythi
 - Core, Supporting and config files are open. Trivial files, **Tests** and **Generated and lockfiles** start folded, since they're most of a big PR's lines; **Show** opens them. The tree leaves out folded sections' files too, until you ask for them.
 - Each file's **Viewed** tick is GitHub's own, so it matches the Files tab both ways. Ticking a file folds it, as on GitHub, and viewed files start folded and greyed out in the tree. A file that changed after you viewed it says so and opens again. **Mark all viewed** clears a section, and the link under the PR's title ticks every trivial, test and generated file at once.
 - Diffs come from a local copy of the repo that the plugin keeps to itself (bare, with file contents fetched only when a diff needs them), so big files open instantly and your own checkouts are never touched.
+- Click a line number, or the blue **+** on the line you point at, to leave a comment. Comments stay in the plugin as pending and never go to GitHub. **Send** shows them with a box for a note above them, and sends them as one message to a new chat in the repo's Paseo project or to one of your chats, the ones on this PR first. It then opens that chat.
 
 ## Claude's check
 

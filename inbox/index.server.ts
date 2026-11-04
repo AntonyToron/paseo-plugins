@@ -1,4 +1,12 @@
 import type { PluginServerContext } from "@getpaseo/plugin/server";
+import { chatPullRequests } from "./server/chat-prs";
+import {
+  listComments,
+  removeComment,
+  sendPendingComments,
+  sendTargets,
+  storeComment,
+} from "./server/comments";
 import {
   listReviewFiles,
   recentReviews,
@@ -10,8 +18,14 @@ import {
 import { searchTargets } from "./server/review-home";
 import { getSnapshot } from "./server/snapshot";
 import { startReviewChat } from "./server/start-review";
+import {
+  deleteComment,
+  getComments,
+  getSendTargets,
+  saveComment,
+  sendComments,
+} from "./shared/comments";
 import { getInbox, startReview } from "./shared/contracts";
-import { chatPullRequests } from "./server/chat-prs";
 import {
   getChatPullRequests,
   getFileDiffs,
@@ -34,5 +48,10 @@ export default function contribute(server: PluginServerContext) {
   server.handle(searchReviewTargets, searchTargets);
   server.handle(getFileSort, reviewFileSort);
   server.handle(getChatPullRequests, chatPullRequests);
+  server.handle(getComments, listComments);
+  server.handle(saveComment, storeComment);
+  server.handle(deleteComment, removeComment);
+  server.handle(getSendTargets, sendTargets);
+  server.handle(sendComments, sendPendingComments);
   return () => {};
 }
