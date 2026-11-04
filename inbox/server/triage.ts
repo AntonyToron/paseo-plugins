@@ -1,18 +1,14 @@
-import { execCommand } from "@getpaseo/plugin/server";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { needsTriage, triageKey, type ReviewRequest, type Triage } from "../shared/model";
+import { dataDir, runClaude } from "./claude";
 
-// Cheap and quick: this only reads a description and runs one Slack search.
-const MODEL = "claude-haiku-5-5";
 const SLACK_SEARCH = "mcp__claude_ai_Slack__slack_search_public_and_private";
 const RECHECK_AFTER_MS = 24 * 60 * 60 * 1000;
 const CONCURRENCY = 2;
 const BODY_CHARS = 4000;
-const TIMEOUT_MS = 3 * 60_000;
 
-const SCHEMA = JSON.stringify({
+const SCHEMA = {
   type: "object",
   properties: {
     verdict: { type: "string", enum: ["review_now", "normal", "not_needed"] },
@@ -21,7 +17,7 @@ const SCHEMA = JSON.stringify({
   },
   required: ["verdict", "reason", "slackUrl"],
   additionalProperties: false,
-});
+};
 
 interface Stored {
   triage: Triage;
@@ -29,13 +25,6 @@ interface Stored {
   checkedAt: number;
 }
 
-function paseoHome(): string {
-  const raw = process.env.PASEO_HOME ?? "~/.paseo";
-  if (raw === "~") return homedir();
-  return resolve(raw.startsWith("~/") ? join(homedir(), raw.slice(2)) : raw);
-}
-// Also the folder claude runs in, so it picks up no project's CLAUDE.md or settings.
-const dataDir = () => join(paseoHome(), "plugin-data", "paseo-inbox");
 const storePath = () => join(dataDir(), "triage.json");
 
 export function triagePrompt(request: ReviewRequest, waitedDays: number): string {
@@ -65,51 +54,14 @@ export function triagePrompt(request: ReviewRequest, waitedDays: number): string
   ].join("\n");
 }
 
-/**
- * Even without a saved transcript, Claude Code keeps large tool results, here whole Slack search
- * pages, in a folder per session. They're of no use once the check is done, so they go.
- */
-async function forgetSession(sessionId: string | undefined) {
-  if (!sessionId || !/^[0-9a-f-]{36}$/.test(sessionId)) return;
-  const claudeHome = process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude");
-  const projectDir = join(claudeHome, "projects", dataDir().replace(/[^a-zA-Z0-9]/g, "-"));
-  await rm(join(projectDir, sessionId), { recursive: true, force: true });
-}
-
-async function askClaude(request: ReviewRequest, waitedDays: number): Promise<Triage> {
-  await mkdir(dataDir(), { recursive: true });
-  const { stdout } = await execCommand(
-    "claude",
-    [
-      "-p",
-      "--model",
-      MODEL,
-      "--no-session-persistence",
-      // The only tool it gets: read-only Slack search. Anything else is refused without a prompt.
-      "--allowedTools",
-      SLACK_SEARCH,
-      "--output-format",
-      "json",
-      "--json-schema",
-      SCHEMA,
-      triagePrompt(request, waitedDays),
-    ],
-    { cwd: dataDir(), timeout: TIMEOUT_MS, maxBuffer: 8 * 1024 * 1024, env: process.env },
-  );
-  const result = JSON.parse(stdout) as {
-    is_error?: boolean;
-    result?: string;
-    session_id?: string;
-    structured_output?: Triage;
-  };
-  await forgetSession(result.session_id);
-  if (result.is_error || !result.structured_output) {
-    throw new Error(
-      `Claude's check of #${request.number} failed: ${result.result?.slice(0, 200) ?? "no answer"}`,
-    );
-  }
-  return result.structured_output;
-}
+const askClaude = (request: ReviewRequest, waitedDays: number) =>
+  runClaude<Triage>({
+    prompt: triagePrompt(request, waitedDays),
+    schema: SCHEMA,
+    // The only tool it gets: read-only Slack search.
+    allowedTools: [SLACK_SEARCH],
+    label: `check #${request.number}`,
+  });
 
 /**
  * Runs the Claude check in the background, two PRs at a time. A PR is checked again when it

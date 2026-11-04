@@ -6,7 +6,6 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   Text,
   View,
   type FlatList as NativeFlatList,
@@ -16,26 +15,60 @@ import {
   FILE_GROUPS,
   FILE_GROUP_LABELS,
   getFileDiffs,
+  getFileSort,
   getReviewFiles,
   githubFileUrl,
   parseDiff,
   setFilesViewed,
+  SORT_TIER_LABELS,
+  SORT_TIERS,
   type DiffLine,
   type FileGroup,
   type ReviewFile,
+  type SortedFile,
 } from "../shared/review";
 import { createDiffStyles, DiffLineRow, type DiffStyles } from "./diff-view";
+import { FileTree } from "./file-tree";
+import { useRowMetrics } from "./row-metrics";
 
 const reviewKeys = {
   files: (repo: string, number: number) => ["paseo-review", repo, number, "files"] as const,
   diffs: (repo: string, number: number, headSha: string, group: FileGroup) =>
     ["paseo-review", repo, number, headSha, "diffs", group] as const,
+  sort: (repo: string, number: number, headSha: string) =>
+    ["paseo-review", repo, number, headSha, "sort"] as const,
 };
 
 // Big groups are fetched in a few calls rather than one huge one.
 const DIFF_BATCH = 60;
-// Tests and generated files stay folded until asked for: they're most of a big PR's lines.
-const OPEN_BY_DEFAULT: ReadonlySet<FileGroup> = new Set(["source", "config"]);
+const SORT_POLL_MS = 3_000;
+const NO_SORT: SortedFile[] = [];
+const JUMP_SETTLE_MS = [0, 120, 300, 600];
+// Estimates for rows not drawn yet; drawn rows use their measured height. Code is 12px monospace
+// with a 20px line height, so a line's wrapped height follows from its length.
+const CHAR_WIDTH = 7.22;
+const LINE_HEIGHT = 20;
+// List padding, body borders, both line-number columns, the sign and the code's right padding.
+const CODE_INSET = 36 + 2 + 96 + 18 + 16;
+const TAB_WIDTH = 8;
+
+function estimateRowHeight(row: Row, codeWidth: number): number {
+  switch (row.kind) {
+    case "section":
+      return 40;
+    case "file":
+      return row.summary ? 62 : 46;
+    case "status":
+      return 41;
+    case "line": {
+      if (row.line.kind === "hunk") return LINE_HEIGHT;
+      if (row.line.kind === "meta") return 24;
+      const columns = Math.max(20, Math.floor(codeWidth / CHAR_WIDTH));
+      const length = row.line.text.replaceAll("\t", " ".repeat(TAB_WIDTH)).length;
+      return LINE_HEIGHT * Math.max(1, Math.ceil(length / columns));
+    }
+  }
+}
 
 type FilesResult = {
   title: string;
@@ -46,9 +79,51 @@ type FilesResult = {
 };
 type Diffs = Record<string, { diff: string; truncated: boolean }>;
 
+/** A run of files under one heading in the scroll and the tree. */
+interface Section {
+  id: string;
+  label: string;
+  group: FileGroup;
+  files: ReviewFile[];
+  openByDefault: boolean;
+}
+
+/**
+ * Source files split into Claude's Core, Supporting and Trivial, in its reading order, once its
+ * sort is in; until then they're one Source section in path order. Trivial files, tests and
+ * generated files start folded: they're most of a big PR's lines and the least of its meaning.
+ */
+function buildSections(files: readonly ReviewFile[], sorted: readonly SortedFile[]): Section[] {
+  const byGroup = (group: FileGroup) => files.filter((file) => file.group === group);
+  const plain = (group: FileGroup): Section => ({
+    id: group,
+    label: FILE_GROUP_LABELS[group],
+    group,
+    files: byGroup(group),
+    openByDefault: group === "source" || group === "config",
+  });
+  const sources = byGroup("source");
+  const sourceSections: Section[] = sorted.length
+    ? SORT_TIERS.map((tier) => ({
+        id: tier,
+        label: SORT_TIER_LABELS[tier],
+        group: "source" as const,
+        files: sorted
+          .filter((entry) => entry.tier === tier)
+          .map((entry) => sources.find((file) => file.path === entry.path))
+          .filter((file): file is ReviewFile => Boolean(file)),
+        openByDefault: tier !== "trivial",
+      }))
+    : [plain("source")];
+  return [
+    ...sourceSections,
+    ...FILE_GROUPS.filter((group) => group !== "source").map(plain),
+  ].filter((section) => section.files.length > 0);
+}
+
 type Row =
-  | { kind: "group"; key: string; group: FileGroup; files: ReviewFile[]; open: boolean }
-  | { kind: "file"; key: string; file: ReviewFile; expanded: boolean }
+  | { kind: "section"; key: string; section: Section; open: boolean }
+  | { kind: "file"; key: string; file: ReviewFile; expanded: boolean; summary: string | null }
   | { kind: "line"; key: string; line: DiffLine }
   | { kind: "status"; key: string; text: string };
 
@@ -63,38 +138,6 @@ function createStyles({ colors }: PluginTheme, compact: boolean) {
       flexDirection: compact ? ("column" as const) : ("row" as const),
       backgroundColor: colors.surface0,
     },
-    // A ScrollView flexes to fill a row by default; pin the tree's width.
-    tree: {
-      width: compact ? ("100%" as const) : 280,
-      flexGrow: 0,
-      flexShrink: 0,
-      maxHeight: compact ? 220 : undefined,
-      borderRightWidth: compact ? 0 : 1,
-      borderBottomWidth: compact ? 1 : 0,
-      borderColor: colors.border,
-    },
-    treeContent: { paddingVertical: 10, paddingHorizontal: 8, gap: 1 },
-    treeGroup: {
-      fontSize: 11,
-      fontWeight: "600" as const,
-      color: colors.foregroundMuted,
-      paddingHorizontal: 6,
-      paddingTop: 10,
-      paddingBottom: 4,
-      letterSpacing: 0.3,
-    },
-    treeFile: {
-      flexDirection: "row" as const,
-      alignItems: "center" as const,
-      gap: 6,
-      paddingVertical: 3,
-      paddingHorizontal: 6,
-      borderRadius: 5,
-    },
-    treeFileActive: { backgroundColor: colors.surface2 },
-    treeName: { flex: 1, fontSize: 12, color: colors.foreground },
-    treeNameViewed: { color: colors.foregroundMuted, opacity: 0.6 },
-    treeStat: { fontSize: 11, color: colors.foregroundMuted },
     main: { flex: 1, minWidth: 0 },
     header: {
       paddingHorizontal: 18,
@@ -138,6 +181,8 @@ function createStyles({ colors }: PluginTheme, compact: boolean) {
       fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
     },
     fileDir: { color: colors.foregroundMuted },
+    fileTitle: { flex: 1, minWidth: 0, gap: 2 },
+    summary: { fontSize: 12, color: colors.foregroundMuted },
     added: { fontSize: 12, color: "#3fb950", fontWeight: "600" as const },
     removed: { fontSize: 12, color: "#f85149", fontWeight: "600" as const },
     changed: { fontSize: 10, fontWeight: "600" as const, color: colors.statusWarning },
@@ -231,6 +276,17 @@ function useSetViewed(repo: string, number: number) {
   });
 }
 
+/** Claude's reading order for the source files, polled while it works. */
+function useFileSort(repo: string, number: number, headSha: string | undefined) {
+  const load = useRpc(getFileSort);
+  return useQuery({
+    queryKey: reviewKeys.sort(repo, number, headSha ?? ""),
+    queryFn: () => load({ repo, number }),
+    enabled: Boolean(headSha),
+    refetchInterval: (query) => (query.state.data?.status === "running" ? SORT_POLL_MS : false),
+  });
+}
+
 /** Every open group's diffs, fetched together per group and parsed once. */
 function useGroupDiffs(
   repo: string,
@@ -302,6 +358,7 @@ function ViewedToggle({
 
 function FileHeader({
   file,
+  summary,
   expanded,
   prUrl,
   styles,
@@ -309,6 +366,7 @@ function FileHeader({
   onToggleViewed,
 }: {
   file: ReviewFile;
+  summary: string | null;
   expanded: boolean;
   prUrl: string;
   styles: Styles;
@@ -323,10 +381,17 @@ function FileHeader({
       style={[styles.fileHeader, !expanded && styles.fileHeaderCollapsed]}
     >
       <Text style={styles.chevron}>{expanded ? "▾" : "▸"}</Text>
-      <Text style={styles.filePath} numberOfLines={1}>
-        {dir ? <Text style={styles.fileDir}>{dir}/</Text> : null}
-        {baseName(file.path)}
-      </Text>
+      <View style={styles.fileTitle}>
+        <Text style={styles.filePath} numberOfLines={1}>
+          {dir ? <Text style={styles.fileDir}>{dir}/</Text> : null}
+          {baseName(file.path)}
+        </Text>
+        {summary ? (
+          <Text style={styles.summary} numberOfLines={1}>
+            {summary}
+          </Text>
+        ) : null}
+      </View>
       {file.viewed === "DISMISSED" ? (
         <Text style={styles.changed}>CHANGED SINCE VIEWED</Text>
       ) : null}
@@ -343,53 +408,6 @@ function FileHeader({
   );
 }
 
-function FileTree({
-  data,
-  openGroups,
-  activePath,
-  styles,
-  onJump,
-}: {
-  data: FilesResult;
-  openGroups: ReadonlySet<FileGroup>;
-  activePath: string | null;
-  styles: Styles;
-  onJump(file: ReviewFile): void;
-}) {
-  return (
-    <ScrollView style={styles.tree} contentContainerStyle={styles.treeContent}>
-      {FILE_GROUPS.map((group) => {
-        const files = data.files.filter((file) => file.group === group);
-        if (!files.length) return null;
-        return (
-          <View key={group}>
-            <Text style={styles.treeGroup}>
-              {FILE_GROUP_LABELS[group].toUpperCase()} · {files.length}
-              {openGroups.has(group) ? "" : " · folded"}
-            </Text>
-            {files.map((file) => (
-              <Pressable
-                key={file.path}
-                accessibilityRole="button"
-                onPress={() => onJump(file)}
-                style={[styles.treeFile, file.path === activePath && styles.treeFileActive]}
-              >
-                <Text
-                  style={[styles.treeName, isViewed(file) && styles.treeNameViewed]}
-                  numberOfLines={1}
-                >
-                  {baseName(file.path)}
-                </Text>
-                <Text style={styles.treeStat}>{file.additions + file.deletions}</Text>
-              </Pressable>
-            ))}
-          </View>
-        );
-      })}
-    </ScrollView>
-  );
-}
-
 export function ReviewScreen(props: PluginScreenProps) {
   const repo = props.params.repo ?? "";
   const number = Number(props.params.number);
@@ -400,11 +418,32 @@ export function ReviewScreen(props: PluginScreenProps) {
   const diffStyles: DiffStyles = useMemo(() => createDiffStyles(props.theme), [props.theme]);
   const { data, error, isPending } = useReviewFiles(repo, number);
   const setViewed = useSetViewed(repo, number);
-  const [openGroups, setOpenGroups] = useState<ReadonlySet<FileGroup>>(OPEN_BY_DEFAULT);
+  const sort = useFileSort(repo, number, data?.headSha);
+  // Sections you showed or folded by hand; the rest keep their default.
+  const [sectionOverrides, setSectionOverrides] = useState<ReadonlyMap<string, boolean>>(new Map());
   // Files you expanded or collapsed by hand; the rest follow GitHub: viewed files start folded.
   const [overrides, setOverrides] = useState<ReadonlyMap<string, boolean>>(new Map());
   const [activePath, setActivePath] = useState<string | null>(null);
   const listRef = useRef<NativeFlatList<Row>>(null);
+
+  const sorted = sort.data?.status === "ready" ? sort.data.files : NO_SORT;
+  const sections = useMemo(() => buildSections(data?.files ?? [], sorted), [data, sorted]);
+  const summaries = useMemo(
+    () => new Map(sorted.map((entry) => [entry.path, entry.summary])),
+    [sorted],
+  );
+  const isOpen = useCallback(
+    (section: Section) => sectionOverrides.get(section.id) ?? section.openByDefault,
+    [sectionOverrides],
+  );
+  const treeSections = useMemo(
+    () => sections.map((section) => ({ ...section, open: isOpen(section) })),
+    [sections, isOpen],
+  );
+  const openGroups = useMemo(
+    () => new Set(sections.filter(isOpen).map((section) => section.group)),
+    [sections, isOpen],
+  );
   const diffs = useGroupDiffs(repo, number, data, openGroups);
 
   const isExpanded = useCallback(
@@ -413,24 +452,22 @@ export function ReviewScreen(props: PluginScreenProps) {
   );
 
   const rows = useMemo<Row[]>(() => {
-    if (!data) return [];
     const out: Row[] = [];
-    for (const group of FILE_GROUPS) {
-      const files = data.files.filter((file) => file.group === group);
-      if (!files.length) continue;
-      const open = openGroups.has(group);
-      out.push({ kind: "group", key: `group:${group}`, group, files, open });
+    for (const section of sections) {
+      const open = isOpen(section);
+      out.push({ kind: "section", key: `section:${section.id}`, section, open });
       if (!open) continue;
-      for (const file of files) {
+      for (const file of section.files) {
         const expanded = isExpanded(file);
-        out.push({ kind: "file", key: `file:${file.path}`, file, expanded });
+        const summary = summaries.get(file.path) || null;
+        out.push({ kind: "file", key: `file:${file.path}`, file, expanded, summary });
         if (!expanded) continue;
         const diff = diffs.parsed.get(file.path);
         if (!diff) {
           out.push({
             kind: "status",
             key: `status:${file.path}`,
-            text: diffs.pending.has(group) ? "Loading diff…" : "No diff for this file.",
+            text: diffs.pending.has(file.group) ? "Loading diff…" : "No diff for this file.",
           });
           continue;
         }
@@ -446,7 +483,14 @@ export function ReviewScreen(props: PluginScreenProps) {
       }
     }
     return out;
-  }, [data, openGroups, isExpanded, diffs.parsed, diffs.pending]);
+  }, [sections, isOpen, isExpanded, summaries, diffs.parsed, diffs.pending]);
+
+  const [listWidth, setListWidth] = useState(0);
+  const estimate = useCallback(
+    (row: Row) => estimateRowHeight(row, listWidth - CODE_INSET),
+    [listWidth],
+  );
+  const metrics = useRowMetrics(rows, estimate);
 
   const toggleViewed = (file: ReviewFile) => {
     const viewed = !isViewed(file);
@@ -456,19 +500,18 @@ export function ReviewScreen(props: PluginScreenProps) {
   };
 
   const jumpTo = (file: ReviewFile) => {
-    if (!openGroups.has(file.group)) setOpenGroups(new Set([...openGroups, file.group]));
+    const section = sections.find((candidate) => candidate.files.includes(file));
+    if (section && !isOpen(section))
+      setSectionOverrides((current) => new Map(current).set(section.id, true));
     setOverrides((current) => new Map(current).set(file.path, true));
     setActivePath(file.path);
-    // The row may not exist until the group opens, so look it up after the next render. Wrapped
-    // lines make row heights unknown until rendered, so a second pass settles on the exact spot.
+    // The first scroll lands on estimated heights; the rows it draws get measured, and the later
+    // scrolls settle on the exact spot. The row may not exist until its section opens.
     const scroll = () => {
-      const index = rowsRef.current.findIndex(
-        (row) => row.kind === "file" && row.file.path === file.path,
-      );
+      const index = rowsRef.current.findIndex((row) => row.key === `file:${file.path}`);
       if (index >= 0) listRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0 });
     };
-    setTimeout(scroll, 0);
-    setTimeout(scroll, 150);
+    for (const delay of JUMP_SETTLE_MS) setTimeout(scroll, delay);
   };
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
@@ -507,26 +550,36 @@ export function ReviewScreen(props: PluginScreenProps) {
   const viewedCount = data.files.filter(isViewed).length;
   const additions = data.files.reduce((sum, file) => sum + file.additions, 0);
   const deletions = data.files.reduce((sum, file) => sum + file.deletions, 0);
+  const hasSources = data.files.some((file) => file.group === "source");
+  const sortNote = !hasSources
+    ? null
+    : sort.error || sort.data?.status === "failed"
+      ? `Couldn't sort the files into a reading order: ${sort.error?.message ?? sort.data?.error}`
+      : sort.data?.status !== "ready"
+        ? "Claude is sorting the source files into a reading order…"
+        : null;
 
-  const renderRow = ({ item }: { item: Row }) => {
+  const renderRow = ({ item }: { item: Row }) => (
+    <View onLayout={(event) => metrics.onRowLayout(item.key, event.nativeEvent.layout.height)}>
+      {renderRowContent(item)}
+    </View>
+  );
+
+  const renderRowContent = (item: Row) => {
     switch (item.kind) {
-      case "group": {
-        const unviewed = item.files.filter((file) => !isViewed(file)).map((file) => file.path);
-        const lines = item.files.reduce((sum, file) => sum + file.additions + file.deletions, 0);
+      case "section": {
+        const { files } = item.section;
+        const unviewed = files.filter((file) => !isViewed(file)).map((file) => file.path);
+        const lines = files.reduce((sum, file) => sum + file.additions + file.deletions, 0);
         return (
           <View style={styles.groupRow}>
             <Text style={styles.groupLabel}>
-              {FILE_GROUP_LABELS[item.group]} · {item.files.length} files · {lines.toLocaleString()}{" "}
-              lines
+              {item.section.label} · {files.length} files · {lines.toLocaleString()} lines
             </Text>
             <Pressable
               accessibilityRole="button"
               onPress={() =>
-                setOpenGroups(
-                  item.open
-                    ? new Set([...openGroups].filter((group) => group !== item.group))
-                    : new Set([...openGroups, item.group]),
-                )
+                setSectionOverrides((current) => new Map(current).set(item.section.id, !item.open))
               }
             >
               <Text style={styles.link}>{item.open ? "Fold" : "Show"}</Text>
@@ -546,6 +599,7 @@ export function ReviewScreen(props: PluginScreenProps) {
         return (
           <FileHeader
             file={item.file}
+            summary={item.summary}
             expanded={item.expanded}
             prUrl={data.url}
             styles={styles}
@@ -569,10 +623,12 @@ export function ReviewScreen(props: PluginScreenProps) {
   return (
     <View style={styles.root}>
       <FileTree
-        data={data}
-        openGroups={openGroups}
+        files={data.files}
+        sections={treeSections}
+        sorted={sorted.length > 0}
         activePath={activePath}
-        styles={styles}
+        theme={props.theme}
+        compact={props.layout.compact}
         onJump={jumpTo}
       />
       <View style={styles.main}>
@@ -585,6 +641,7 @@ export function ReviewScreen(props: PluginScreenProps) {
             <Text style={styles.added}>+{additions.toLocaleString()}</Text>{" "}
             <Text style={styles.removed}>−{deletions.toLocaleString()}</Text> · {viewedCount} viewed
           </Text>
+          {sortNote ? <Text style={styles.meta}>{sortNote}</Text> : null}
           {diffs.errors.length ? <Text style={styles.error}>{diffs.errors[0]}</Text> : null}
         </View>
         <FlatList
@@ -597,13 +654,12 @@ export function ReviewScreen(props: PluginScreenProps) {
           windowSize={21}
           onViewableItemsChanged={onViewable}
           viewabilityConfig={{ itemVisiblePercentThreshold: 10 }}
-          // Lines wrap, so heights aren't known up front: jump near, then settle on the row.
-          onScrollToIndexFailed={({ index, averageItemLength }) => {
-            listRef.current?.scrollToOffset({ offset: index * averageItemLength, animated: false });
-            setTimeout(
-              () => listRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0 }),
-              60,
-            );
+          getItemLayout={metrics.getItemLayout}
+          onLayout={(event) => {
+            const width = Math.round(event.nativeEvent.layout.width);
+            if (width === listWidth) return;
+            metrics.forgetMeasured();
+            setListWidth(width);
           }}
         />
       </View>

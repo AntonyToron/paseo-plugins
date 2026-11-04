@@ -68,6 +68,34 @@ export const setFilesViewed = defineRpc({
   output: z.object({ ok: z.literal(true) }),
 });
 
+export const SORT_TIERS = ["core", "supporting", "trivial"] as const;
+export type SortTier = (typeof SORT_TIERS)[number];
+
+export const SORT_TIER_LABELS: Record<SortTier, string> = {
+  core: "Core",
+  supporting: "Supporting",
+  trivial: "Trivial",
+};
+
+export const sortedFile = z.object({
+  path: z.string(),
+  tier: z.enum(SORT_TIERS),
+  /** What changed, in a few words. */
+  summary: z.string(),
+});
+export type SortedFile = z.infer<typeof sortedFile>;
+
+export const getFileSort = defineRpc({
+  name: "review.sort",
+  input: prRef,
+  output: z.object({
+    status: z.enum(["ready", "running", "failed"]),
+    /** Source files in reading order; empty until ready. */
+    files: z.array(sortedFile),
+    error: z.string().nullable(),
+  }),
+});
+
 export const pullRequestCard = z.object({
   repo: z.string(),
   number: z.number(),

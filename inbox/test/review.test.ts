@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { sectionPath } from "../server/review-mirror";
+import { excerpt, settleSort } from "../server/review-sort";
 import { fileGroup, parseDiff } from "../shared/review";
 
 describe("sectionPath", () => {
@@ -74,5 +75,40 @@ describe("parseDiff", () => {
     expect(
       parseDiff("diff --git a/x.png b/x.png\nBinary files a/x.png and b/x.png differ\n"),
     ).toEqual([{ kind: "meta", text: "Binary file changed", oldLine: null, newLine: null }]);
+  });
+});
+
+describe("settleSort", () => {
+  const file = (path: string) => ({
+    path,
+    additions: 1,
+    deletions: 0,
+    changeType: "MODIFIED",
+    viewed: "UNVIEWED" as const,
+    group: "source" as const,
+  });
+
+  it("keeps Claude's order within a tier, drops invented paths and places forgotten ones", () => {
+    const files = ["a.ts", "b.ts", "c.ts", "d.ts"].map(file);
+    const settled = settleSort(files, [
+      { path: "c.ts", tier: "trivial", summary: "rename" },
+      { path: "b.ts", tier: "core", summary: "the logic" },
+      { path: "made-up.ts", tier: "core", summary: "" },
+      { path: "a.ts", tier: "core", summary: "entry point" },
+      { path: "b.ts", tier: "trivial", summary: "duplicate" },
+    ]);
+    expect(settled.map((entry) => [entry.path, entry.tier])).toEqual([
+      ["b.ts", "core"],
+      ["a.ts", "core"],
+      ["d.ts", "supporting"],
+      ["c.ts", "trivial"],
+    ]);
+  });
+});
+
+describe("excerpt", () => {
+  it("keeps hunk headers and changed lines, not context", () => {
+    const diff = "--- a/x.ts\n+++ b/x.ts\n@@ -1,3 +1,3 @@\n same\n-old\n+new\n same\n";
+    expect(excerpt(diff)).toBe("@@ -1,3 +1,3 @@\n-old\n+new");
   });
 });

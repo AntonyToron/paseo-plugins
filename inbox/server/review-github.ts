@@ -11,6 +11,7 @@ interface PullRequestFiles {
   baseRef: string;
   state: "OPEN" | "DRAFT" | "MERGED" | "CLOSED";
   updatedAt: string;
+  body: string;
   files: ReviewFile[];
 }
 
@@ -18,7 +19,7 @@ const FILES = `
 query($owner: String!, $name: String!, $number: Int!, $after: String) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      id title url headRefOid headRefName baseRefName state isDraft updatedAt
+      id title url headRefOid headRefName baseRefName state isDraft updatedAt body
       author { login }
       files(first: 100, after: $after) {
         pageInfo { hasNextPage endCursor }
@@ -39,6 +40,7 @@ interface FilesPage {
         state: "OPEN" | "MERGED" | "CLOSED";
         isDraft: boolean;
         updatedAt: string;
+        body: string;
         headRefName: string;
         baseRefName: string;
         author: { login: string } | null;
@@ -115,6 +117,7 @@ export async function pullRequestFiles(repo: string, number: number): Promise<Pu
     baseRef: pr.baseRefName,
     state: pr.isDraft && pr.state === "OPEN" ? "DRAFT" : pr.state,
     updatedAt: pr.updatedAt,
+    body: pr.body,
     files,
   };
 }

@@ -1,6 +1,7 @@
 import type { RpcInput } from "@getpaseo/plugin";
 import type {
   getFileDiffs,
+  getFileSort,
   getReviewFiles,
   resolvePullRequest,
   setFilesViewed,
@@ -8,6 +9,33 @@ import type {
 import { markViewed, pullRequestFiles } from "./review-github";
 import { readRecent, rememberOpened } from "./review-home";
 import { fetchPullRequest, fileDiffs, repoForCwd } from "./review-mirror";
+import { Sorter } from "./review-sort";
+
+const sorter = new Sorter();
+
+/** Claude's reading order for the PR's source files; the first ask starts it in the background. */
+export async function reviewFileSort({ repo, number }: RpcInput<typeof getFileSort>) {
+  const pr = await current(repo, number);
+  return sorter.status(`${repo}#${number}`, pr.headSha, async () => {
+    const sources = pr.files.filter((file) => file.group === "source");
+    const fetched = await fetchPullRequest(repo, number, pr.baseRef, pr.headSha);
+    const diffs = sources.length
+      ? await fileDiffs(
+          fetched,
+          sources.map((file) => file.path),
+        )
+      : {};
+    return {
+      repo,
+      number,
+      title: pr.title,
+      body: pr.body,
+      headSha: pr.headSha,
+      files: sources,
+      diffs,
+    };
+  });
+}
 
 const PR_URL = /github\.com\/([\w.-]+\/[\w.-]+)\/pull\/(\d+)/;
 
