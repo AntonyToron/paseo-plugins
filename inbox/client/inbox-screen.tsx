@@ -1,7 +1,7 @@
 import type { PluginTheme } from "@getpaseo/plugin";
 import { openExternalUrl, useRpc, type PluginScreenProps } from "@getpaseo/plugin/client";
 import { useToast } from "@getpaseo/plugin/client/react-native";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -23,6 +23,16 @@ export function useInbox() {
     queryKey: inboxKeys.snapshot,
     queryFn: () => load({}),
     refetchInterval: REFRESH_MS,
+  });
+}
+
+/** Asks GitHub now instead of reading the couple-of-minutes-old shared answer. */
+function useRefreshInbox() {
+  const load = useRpc(getInbox);
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => load({ refresh: true }),
+    onSuccess: (snapshot) => queryClient.setQueryData(inboxKeys.snapshot, snapshot),
   });
 }
 
@@ -106,6 +116,13 @@ function createStyles({ colors }: PluginTheme) {
       backgroundColor: colors.surface2,
     },
     secondaryText: { fontSize: 12, color: colors.foreground },
+    toolbar: {
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+      gap: 10,
+      justifyContent: "flex-end" as const,
+    },
+    updated: { fontSize: 12, color: colors.foregroundMuted },
     triageNote: { fontSize: 12, color: colors.foregroundMuted, textAlign: "center" as const },
     triageError: { fontSize: 12, color: colors.statusWarning, textAlign: "center" as const },
     toggle: { fontSize: 12, color: colors.foregroundMuted },
@@ -117,6 +134,13 @@ function createStyles({ colors }: PluginTheme) {
     },
     error: { fontSize: 13, color: colors.statusDanger },
   };
+}
+
+function updatedAgo(iso: string): string {
+  const minutes = Math.floor((Date.now() - Date.parse(iso)) / 60_000);
+  if (minutes < 1) return "Updated just now";
+  if (minutes < 60) return `Updated ${minutes}m ago`;
+  return `Updated ${Math.floor(minutes / 60)}h ago`;
 }
 
 function age(iso: string): string {
@@ -252,6 +276,7 @@ export function InboxScreen(props: PluginScreenProps) {
   const styles = useMemo(() => createStyles(props.theme), [props.theme]);
   const { colors } = props.theme;
   const { data, error, isPending } = useInbox();
+  const refresh = useRefreshInbox();
 
   if (isPending) {
     return (
@@ -273,6 +298,22 @@ export function InboxScreen(props: PluginScreenProps) {
     : undefined;
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
+      <View style={styles.toolbar}>
+        <Text style={styles.updated}>
+          {refresh.isPending ? "Asking GitHub…" : updatedAgo(data.fetchedAt)}
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          style={styles.secondaryButton}
+          disabled={refresh.isPending}
+          onPress={() => refresh.mutate()}
+        >
+          <Text style={styles.secondaryText}>{refresh.isPending ? "Refreshing…" : "Refresh"}</Text>
+        </Pressable>
+      </View>
+      {refresh.error ? (
+        <Text style={styles.error}>Couldn't refresh: {refresh.error.message}</Text>
+      ) : null}
       {error ? <Text style={styles.error}>{error.message}</Text> : null}
       {data.triage.pending ? (
         <Text style={styles.triageNote}>

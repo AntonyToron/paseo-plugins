@@ -4,7 +4,7 @@ import { startReviewChat } from "./server/start-review";
 import { getInbox, startReview } from "./shared/contracts";
 
 export default function contribute(server: PluginServerContext) {
-  server.handle(getInbox, () => getSnapshot());
+  server.handle(getInbox, ({ refresh }) => getSnapshot(refresh === true));
   server.handle(startReview, startReviewChat);
   return () => {};
 }

@@ -5,7 +5,7 @@ import { Triager } from "./triage";
 
 const CACHE_MS = 2 * 60_000;
 
-let cached: { at: number; snapshot: Promise<InboxSnapshot> } | null = null;
+let cached: { at: number; settled: boolean; snapshot: Promise<InboxSnapshot> } | null = null;
 const triager = new Triager();
 
 async function build(): Promise<InboxSnapshot> {
@@ -37,17 +37,27 @@ async function build(): Promise<InboxSnapshot> {
     mine: actions.sort((a, b) => order(a) - order(b) || a.since.localeCompare(b.since)),
     quietMine: mine.length - actions.length,
     triage: { pending: triage.pending, error: triage.error },
+    fetchedAt: new Date(now).toISOString(),
   };
 }
 
-/** GitHub's search API is rate limited, so every client shares one answer for a couple of minutes. */
+/**
+ * GitHub's search API is rate limited, so every client shares one answer for a couple of
+ * minutes. A refresh skips that, but joins one already in flight rather than starting another.
+ */
 export function getSnapshot(refresh = false): Promise<InboxSnapshot> {
-  if (!cached || refresh || Date.now() - cached.at > CACHE_MS) {
-    const snapshot = build();
-    cached = { at: Date.now(), snapshot };
-    snapshot.catch(() => {
-      cached = null;
-    });
+  const stale = !cached || Date.now() - cached.at > CACHE_MS;
+  if (stale || (refresh && cached?.settled)) {
+    const entry = { at: Date.now(), settled: false, snapshot: build() };
+    entry.snapshot.then(
+      () => {
+        entry.settled = true;
+      },
+      () => {
+        if (cached === entry) cached = null;
+      },
+    );
+    cached = entry;
   }
-  return cached.snapshot;
+  return (cached as NonNullable<typeof cached>).snapshot;
 }

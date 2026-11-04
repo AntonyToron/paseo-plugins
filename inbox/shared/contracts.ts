@@ -4,7 +4,8 @@ import { inboxSnapshot } from "./model";
 
 export const getInbox = defineRpc({
   name: "inbox.snapshot",
-  input: z.object({}),
+  /** refresh skips the shared cache and asks GitHub now. */
+  input: z.object({ refresh: z.boolean().optional() }),
   output: inboxSnapshot,
 });
 

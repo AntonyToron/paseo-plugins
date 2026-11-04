@@ -25,6 +25,8 @@ export const inboxSnapshot = z.object({
   quietMine: z.number(),
   /** Claude's background check: how far it has got, and why it stopped if it did. */
   triage: z.object({ pending: z.number(), error: z.string().nullable() }),
+  /** When GitHub was last asked. */
+  fetchedAt: z.string(),
 });
 export type InboxSnapshot = z.infer<typeof inboxSnapshot>;
 
