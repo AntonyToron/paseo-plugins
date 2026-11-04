@@ -42,6 +42,16 @@ export type ReviewFile = z.infer<typeof reviewFile>;
 
 const prRef = z.object({ repo: z.string(), number: z.number() });
 
+/** Each open chat whose workspace has a PR, the one Paseo shows in the chat's PR pill. */
+export const getChatPullRequests = defineRpc({
+  name: "review.chat-prs",
+  input: z.object({}),
+  output: z.object({
+    chats: z.array(prRef.extend({ agentId: z.string(), workspaceId: z.string() })),
+  }),
+});
+export type ChatPullRequest = z.infer<typeof getChatPullRequests.output>["chats"][number];
+
 export const getReviewFiles = defineRpc({
   name: "review.files",
   input: prRef,

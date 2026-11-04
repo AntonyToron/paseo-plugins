@@ -11,7 +11,9 @@ import { searchTargets } from "./server/review-home";
 import { getSnapshot } from "./server/snapshot";
 import { startReviewChat } from "./server/start-review";
 import { getInbox, startReview } from "./shared/contracts";
+import { chatPullRequests } from "./server/chat-prs";
 import {
+  getChatPullRequests,
   getFileDiffs,
   getFileSort,
   getRecentReviews,
@@ -31,5 +33,6 @@ export default function contribute(server: PluginServerContext) {
   server.handle(getRecentReviews, recentReviews);
   server.handle(searchReviewTargets, searchTargets);
   server.handle(getFileSort, reviewFileSort);
+  server.handle(getChatPullRequests, chatPullRequests);
   return () => {};
 }

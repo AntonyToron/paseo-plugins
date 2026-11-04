@@ -7,6 +7,7 @@ import { SidebarRow } from "@getpaseo/plugin/client/ui";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Text } from "react-native";
 import { InboxScreen, needsYouCount, useInbox } from "./client/inbox-screen";
+import { addReviewPills } from "./client/review-pills";
 import { ReviewScreen } from "./client/review-screen";
 import { resolvePullRequest } from "./shared/review";
 
@@ -44,6 +45,7 @@ export default function contribute(client: PluginClientContext) {
     openReview(repo, number);
   };
   const removers = [
+    addReviewPills(client, openReview),
     client.addScreen({
       id: SCREEN_ID,
       title: "PR inbox",
