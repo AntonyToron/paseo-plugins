@@ -21,7 +21,7 @@ Priority comes from the repo's **High / Medium / Low Priority** labels. Everythi
 
 - Claude Haiku sorts the source files into **Core**, **Supporting** and **Trivial**, in the order to read them, with a line under each file on what changed in it. It reads each file's size and the start of its diff, runs once per push, and takes a minute or two on a big PR. **Reading order** in the tree lists the files the same way.
 - Core, Supporting and config files are open. Trivial files, **Tests** and **Generated and lockfiles** start folded, since they're most of a big PR's lines; **Show** opens them. The tree leaves out folded sections' files too, until you ask for them.
-- Each file's **Viewed** tick is GitHub's own, so it matches the Files tab both ways. Ticking a file folds it, as on GitHub, and viewed files start folded and greyed out in the tree. A file that changed after you viewed it says so and opens again. **Mark all viewed** clears a section.
+- Each file's **Viewed** tick is GitHub's own, so it matches the Files tab both ways. Ticking a file folds it, as on GitHub, and viewed files start folded and greyed out in the tree. A file that changed after you viewed it says so and opens again. **Mark all viewed** clears a section, and the link under the PR's title ticks every trivial, test and generated file at once.
 - Diffs come from a local copy of the repo that the plugin keeps to itself (bare, with file contents fetched only when a diff needs them), so big files open instantly and your own checkouts are never touched.
 
 ## Claude's check

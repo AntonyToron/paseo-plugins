@@ -136,6 +136,14 @@ type Row =
   | { kind: "status"; key: string; text: string };
 
 const isViewed = (file: ReviewFile) => file.viewed === "VIEWED";
+
+const SKIPPED_NAMES: Record<string, string> = {
+  trivial: "trivial",
+  tests: "test",
+  generated: "generated",
+};
+const listWords = (words: readonly string[]) =>
+  words.length > 1 ? `${words.slice(0, -1).join(", ")} and ${words.at(-1)}` : (words[0] ?? "");
 const baseName = (path: string) => path.split("/").at(-1) ?? path;
 const dirName = (path: string) => path.split("/").slice(0, -1).join("/");
 
@@ -573,6 +581,12 @@ export function ReviewScreen(props: PluginScreenProps) {
       : sort.data?.status !== "ready"
         ? "Claude is sorting the source files into a reading order…"
         : null;
+  // The sections that start folded are the ones you skip reading; one press ticks them on GitHub.
+  const skipped = sections.filter((section) => !section.openByDefault);
+  const skippedUnviewed = skipped
+    .flatMap((section) => section.files)
+    .filter((file) => !isViewed(file))
+    .map((file) => file.path);
 
   const renderRow = ({ item }: { item: Row }) => (
     <View onLayout={(event) => metrics.onRowLayout(item.key, event.nativeEvent.layout.height)}>
@@ -659,6 +673,18 @@ export function ReviewScreen(props: PluginScreenProps) {
             <Text style={styles.added}>+{additions.toLocaleString()}</Text>{" "}
             <Text style={styles.removed}>−{deletions.toLocaleString()}</Text> · {viewedCount} viewed
           </Text>
+          {skippedUnviewed.length ? (
+            <Pressable
+              accessibilityRole="button"
+              disabled={setViewed.isPending}
+              onPress={() => setViewed.mutate({ paths: skippedUnviewed, viewed: true })}
+            >
+              <Text style={styles.link}>
+                Mark {listWords(skipped.map((section) => SKIPPED_NAMES[section.id] ?? section.id))}{" "}
+                files viewed on GitHub ({skippedUnviewed.length})
+              </Text>
+            </Pressable>
+          ) : null}
           {sortNote ? <Text style={styles.meta}>{sortNote}</Text> : null}
           {diffs.errors.length ? <Text style={styles.error}>{diffs.errors[0]}</Text> : null}
         </View>
