@@ -11,6 +11,7 @@ Plugins for [Paseo](https://github.com/getpaseo/paseo), the desktop app for runn
 | [resume](resume) | After a restart or crash, lists the chats that were cut off mid-turn and continues them in one press. |
 | [mcp-reconnect](mcp-reconnect) | `/mcp-reconnect` restarts a chat's Claude process so every MCP server reconnects, keeping the conversation. |
 | [slack-thread](slack-thread) | Chats started from a Slack thread get a pill to open it or ask the chat to check for new replies. |
+| [bg-tasks](bg-tasks) | Chats with background commands or agents still running get a pill listing them, how long each has run, and its latest output. |
 | [vim](vim) | A vim-style normal mode: scroll the chat, switch tabs and move between panes from the keyboard. |
 
 ## Install
