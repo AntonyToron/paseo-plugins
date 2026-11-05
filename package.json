@@ -18,7 +18,8 @@
     "inbox",
     "chat-search",
     "ask",
-    "slack-thread"
+    "slack-thread",
+    "bg-tasks"
   ],
   "scripts": {
     "typecheck": "npm run typecheck --workspaces",

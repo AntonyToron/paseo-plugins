@@ -1,0 +1,9 @@
+{
+  "id": "paseo-bg-tasks",
+  "name": "Background tasks pill",
+  "description": "Chats with background tasks still running, like a yarn install or a review agent, get a pill showing what's running, for how long, and its latest output.",
+  "media": [],
+  "requirements": {
+    "paseo": ">=0.11.2"
+  }
+}

@@ -1,0 +1,3 @@
+Chats with background tasks still running get a pill on their composer, so a chat that looks idle but is still installing dependencies or waiting on review agents says so. With one task, the pill shows its name; with more, how many. Pressing it lists each task with how long it has been running and, for shell commands, the latest line of its output.
+
+Claude Code notes in the chat's transcript when a background command or agent starts and when it ends, and the plugin reads that. A shell command also counts as running only while some process still has its output file open, so one killed by a restart doesn't linger. Background agents stop with Paseo's daemon, so one started before the daemon's last start is treated as gone.
