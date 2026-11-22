@@ -12,6 +12,8 @@ Someone else's draft PR isn't asking for review yet, so its workspace stays off 
 
 The same grouping can also be your whole sidebar. Pick **Needs me** under Settings → Sidebar (it's chosen per device). Every open workspace shows under the group it would have on the dash, with its PR state on the second line and a spinner while it works. **Done** and **Others' drafts** start folded. Hovering a workspace whose PR is merged or closed, with nothing that would go with its worktree, shows **Archive**.
 
+Chats that open in a repo's main checkout, where `paseo.json` sets up worktrees, are told to start new branches in their own worktree workspace with `paseo run --new-workspace worktree` rather than switching branches in the shared checkout. Each piece of work then gets its own branch, Changes, PR link and scripts, and archiving the workspace removes the worktree. Questions, investigation and work on the checkout's current branch stay in the chat.
+
 PR details come from `gh` on the machine running Paseo, so it must be installed and signed in there.
 
 ## Install
