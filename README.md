@@ -9,8 +9,9 @@ Plugins for [Paseo](https://github.com/getpaseo/paseo), the desktop app for runn
 | [chat-search](chat-search) | Search what was said in any chat, archived ones included, instead of just titles. |
 | [ask](ask) | `/ask` sends a question to another chat and brings its answer back to the one you asked from. |
 | [resume](resume) | After a restart or crash, lists the chats that were cut off mid-turn and continues them in one press. |
-| [mcp-reconnect](mcp-reconnect) | `/mcp-reconnect` restarts a chat's Claude process so every MCP server reconnects, keeping the conversation. |
+| [mcp-reconnect](mcp-reconnect) | An MCP pill on chats whose servers failed or need a sign-in, with Reconnect, which restarts the chat's Claude process and shows what came back, and `/mcp-reconnect`. |
 | [slack-thread](slack-thread) | Chats started from a Slack thread get a pill to open it or ask the chat to check for new replies. |
+| [slack](slack) | A sidebar view of your Slack mentions, DMs and thread replies, checked every 10 minutes through your Claude Slack connection, with no Slack token. |
 | [bg-tasks](bg-tasks) | Chats with background commands or agents still running get a pill listing them, how long each has run, and its latest output. |
 | [vim](vim) | A vim-style normal mode: scroll the chat, switch tabs and move between panes from the keyboard. |
 

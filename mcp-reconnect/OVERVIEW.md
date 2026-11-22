@@ -1,5 +1,10 @@
-Type `/mcp-reconnect` in an agent's composer to reconnect its MCP servers without starting a new session.
+Chats whose MCP servers failed or need a sign-in get an **MCP** pill on their composer with how many. Pressing it lists each server's state, with the reason a server failed, and offers:
 
-Claude's own `/mcp` needs the interactive terminal UI, which Paseo doesn't run. This command reloads the agent instead: Paseo stops the Claude process along with its MCP servers and resumes the same conversation in a fresh process. Claude reads its MCP config and stored OAuth tokens again on startup, so a server you just authenticated in a terminal `claude` session comes back connected.
+- **Reconnect** restarts the chat's Claude process, keeping the conversation, then checks every server and shows what came back. The pill says when it's restarting, and confirms the new process actually opened.
+- **Check again** checks every server without restarting anything, the way a new Claude process in that folder would see them.
+- **Sign in…** opens a terminal tab running `claude` in the workspace, where `/mcp` can sign servers in. Restarting doesn't fix a server that needs a sign-in. claude.ai connectors link to their settings on claude.ai instead.
+- **Ignore** stops a server you don't use from counting, in every chat.
 
-It is the same as "Reload agent" in the tab menu or Command Center. It refuses while the agent is mid-turn, because a reload would interrupt it.
+`/mcp-reconnect` in a chat does the same as Reconnect, with the pill showing progress and the result.
+
+Between checks, the pill follows what Claude records in the chat's transcript whenever its tools change: which servers are still connecting, need a sign-in or failed.
