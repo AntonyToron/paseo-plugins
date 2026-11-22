@@ -4,7 +4,7 @@ Plugins for [Paseo](https://github.com/getpaseo/paseo), the desktop app for runn
 
 | Plugin | What it does |
 | --- | --- |
-| [dash](dash) | Every open workspace in two lines, grouped by what it needs from you. Review chats flag new commits and comments on their PR since they last looked, and a **Re-review** button asks the same chat to review just what changed. |
+| [dash](dash) | Every open workspace in two lines, grouped by what it needs from you. Review chats flag new commits and comments on their PR since they last looked, and a **Re-review** button asks the same chat to review just what changed. Can also replace the sidebar with the same groups, as the **Needs me** view. |
 | [inbox](inbox) | The PRs that need you: High Priority and security reviews first, then your other review requests and your own PRs with feedback you haven't answered. **Start review** opens a review chat for any of them. |
 | [chat-search](chat-search) | Search what was said in any chat, archived ones included, instead of just titles. |
 | [ask](ask) | `/ask` sends a question to another chat and brings its answer back to the one you asked from. |

@@ -54,8 +54,14 @@ export function fromCommand(command: string): PullRequestRef | null {
       at: match.index ?? 0,
       ref: lastUrl(match[1] ?? "") ?? parseGhPrArgs(match[1] ?? ""),
     })),
-    ...[...command.matchAll(PR_URL)].map((match) => ({ at: match.index ?? 0, ref: refFrom(match) })),
-    ...[...command.matchAll(API_PULLS)].map((match) => ({ at: match.index ?? 0, ref: refFrom(match) })),
+    ...[...command.matchAll(PR_URL)].map((match) => ({
+      at: match.index ?? 0,
+      ref: refFrom(match),
+    })),
+    ...[...command.matchAll(API_PULLS)].map((match) => ({
+      at: match.index ?? 0,
+      ref: refFrom(match),
+    })),
   ];
   let latest: Located | null = null;
   for (const candidate of candidates) {

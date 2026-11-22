@@ -6,4 +6,6 @@ A PR lands in **Re-look** when it has commits or comments from someone else sinc
 
 Someone else's draft PR isn't asking for review yet, so its workspace stays off the dash until the PR is marked ready, and then anything pushed meanwhile shows as new. It still appears while its chat needs you, is working, or has results you haven't seen. Your own drafts always show.
 
+The same grouping can also be your whole sidebar. Pick **Needs me** under Settings → Sidebar (it's chosen per device). Every open workspace shows under the group it would have on the dash, with its PR state on the second line and a spinner while it works. **Done** and **Others' drafts** start folded. Hovering a workspace whose PR is merged or closed, with nothing that would go with its worktree, shows **Archive**.
+
 PR details come from `gh` on the machine running Paseo, so it must be installed and signed in there.
