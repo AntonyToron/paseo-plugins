@@ -172,6 +172,7 @@ export async function sendPendingComments(
         repo,
         title: `Review comments on PR #${number} ${title}`,
         prompt: message,
+        pullRequest: number,
       })
     ).agentId;
   const sent = new Set(comments.map((comment) => comment.id));

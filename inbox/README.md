@@ -15,7 +15,7 @@ The **Needs you** tab:
 - **Review requests**: the rest of what's waiting on you, oldest first, with what other reviewers have already said. Drafts never appear.
 - **Stale requests**: requests over 30 days old that aren't urgent, folded away.
 
-Press a row to open the PR on GitHub. **Start review** opens a new chat in that repo's Paseo project with `/pr-review <url>`, using the checkout and settings of your most recent review chat. The repo needs a Paseo project whose git remote points at it.
+Press a row to open the PR on GitHub. **Start review** opens a new chat with `/pr-review <url>` in a worktree workspace with the PR checked out, so the workspace's branch, diff, PR panel and scripts are the PR's, and archiving it removes the worktree. If a worktree workspace already has the PR, the chat opens there instead. It uses the model and settings of your most recent review chat, and the repo needs a Paseo project whose git remote points at it.
 
 Priority comes from the repo's **High / Medium / Low Priority** labels. Everything comes from `gh` on the machine running Paseo, refreshed every couple of minutes.
 
@@ -27,7 +27,7 @@ Priority comes from the repo's **High / Medium / Low Priority** labels. Everythi
 - Core, Supporting and config files are open. Trivial files, **Tests** and **Generated and lockfiles** start folded, since they're most of a big PR's lines; **Show** opens them. The tree leaves out folded sections' files too, until you ask for them.
 - Each file's **Viewed** tick is GitHub's own, so it matches the Files tab both ways. Ticking a file folds it, as on GitHub, and viewed files start folded and greyed out in the tree. A file that changed after you viewed it says so and opens again. **Mark all viewed** clears a section, and the link under the PR's title ticks every trivial, test and generated file at once.
 - Diffs come from a local copy of the repo that the plugin keeps to itself (bare, with file contents fetched only when a diff needs them), so big files open instantly and your own checkouts are never touched.
-- Click a line number, or the blue **+** on the line you point at, to leave a comment. Comments stay in the plugin as pending and never go to GitHub. **Send** shows them with a box for a note above them, and sends them as one message to a new chat in the repo's Paseo project or to one of your chats, the ones on this PR first. It then opens that chat.
+- Click a line number, or the blue **+** on the line you point at, to leave a comment. Comments stay in the plugin as pending and never go to GitHub. **Send** shows them with a box for a note above them, and sends them as one message to a new chat in the PR's worktree workspace or to one of your chats, the ones on this PR first. It then opens that chat.
 
 ## Claude's check
 

@@ -456,7 +456,7 @@ export function SendDialog({
         <View style={styles.targets}>
           <TargetRow
             label="A new chat"
-            meta={`In ${repo}'s Paseo project, set up like your last review chat`}
+            meta="In a worktree with this PR checked out, set up like your last review chat"
             selected={selected === null}
             styles={styles}
             onPress={() => setPicked(null)}

@@ -21,7 +21,7 @@ async function recentAgents(paseo: Paseo): Promise<Agent[]> {
 }
 
 /**
- * Starts a review the way you start them by hand: a new workspace on the repo's Paseo project
+ * Starts a review the way you start them by hand: a worktree workspace with the PR checked out,
  * whose first message is `/pr-review <url>`.
  */
 export async function startReviewChat(
@@ -32,16 +32,43 @@ export async function startReviewChat(
     repo,
     title: `Review PR #${number} ${title}`,
     prompt: `/pr-review ${url}`,
+    pullRequest: number,
+  });
+}
+
+const PR_URL = /github\.com\/([\w.-]+\/[\w.-]+)\/pull\/(\d+)/;
+
+/**
+ * An active worktree workspace that already has this PR checked out. Git keeps a branch in one
+ * worktree at a time, so a second checkout of the same PR can't be made; the chat goes here.
+ */
+async function prWorkspace(paseo: Paseo, repo: string, number: number) {
+  const { entries } = await paseo.workspaces.list({ page: { limit: PAGE_LIMIT } });
+  return entries.find((workspace) => {
+    const url = PR_URL.exec(workspace.githubRuntime?.pullRequest?.url ?? "");
+    return (
+      !workspace.archivingAt &&
+      workspace.workspaceKind === "worktree" &&
+      url?.[1]?.toLowerCase() === repo.toLowerCase() &&
+      Number(url[2]) === number
+    );
   });
 }
 
 /**
- * A new workspace and chat on the repo's Paseo project. It copies the checkout, model, mode and
- * thinking setting of your most recent review chat, so it lands where your reviews usually do.
+ * A new chat on the repo's Paseo project, in a new workspace. With a PR, the workspace is a
+ * worktree with the PR checked out, so its branch, diff, PR panel and scripts are the PR's, and
+ * archiving it removes the worktree. It copies the model, mode and thinking setting of your most
+ * recent review chat.
  */
 export async function startChatInRepo(
   paseo: Paseo,
-  { repo, title, prompt }: { repo: string; title: string; prompt: string },
+  {
+    repo,
+    title,
+    prompt,
+    pullRequest,
+  }: { repo: string; title: string; prompt: string; pullRequest?: number },
 ) {
   const key = `remote:github.com/${repo}`.toLowerCase();
   const { projects } = await paseo.projects.list();
@@ -69,12 +96,23 @@ export async function startChatInRepo(
   const project = (template && inProject(template)) ?? matching[0];
   if (!project) throw new Error(`No Paseo project points at ${repo}.`);
 
-  const workspace = await paseo.workspaces.create({
-    title: title.slice(0, MAX_TITLE_CHARS),
-    // Tells the daemon an agent follows, so the workspace doesn't sit there looking idle.
-    firstAgentContext: { prompt, attachments: [] },
-    source: { kind: "directory", path: project.projectRootPath, projectId: project.projectId },
-  });
+  const existing = pullRequest ? await prWorkspace(paseo, repo, pullRequest) : undefined;
+  const workspace = existing
+    ? paseo.workspaces.ref(existing.id)
+    : await paseo.workspaces.create({
+        title: title.slice(0, MAX_TITLE_CHARS),
+        // Tells the daemon an agent follows, so the workspace doesn't sit there looking idle.
+        firstAgentContext: { prompt, attachments: [] },
+        source: pullRequest
+          ? {
+              kind: "worktree",
+              cwd: project.projectRootPath,
+              projectId: project.projectId,
+              action: "checkout",
+              checkoutSource: { kind: "change_request", number: pullRequest },
+            }
+          : { kind: "directory", path: project.projectRootPath, projectId: project.projectId },
+      });
   const agent = await workspace.agents.create({
     config: {
       provider: `claude/${template.model}`,
