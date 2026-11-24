@@ -10,11 +10,17 @@ export const mcpServerStatus = z.object({
 export const chatMcp = z.object({
   agentId: z.string(),
   workspaceId: z.string(),
-  /** "turn": what Claude recorded at the chat's last change; "check": a live `claude mcp list`. */
+  provider: z.enum(["claude", "codex"]),
+  /**
+   * Claude: "turn" is what it recorded at the chat's last change, "check" a live `claude mcp list`.
+   * Codex: both come from the chat's session log; a check also re-reads which servers need a sign-in.
+   */
   source: z.enum(["turn", "check"]),
   at: z.string(),
-  /** A turn record lists only servers with problems; a check lists every server. */
+  /** A Claude turn record lists only servers with problems; the rest list every server. */
   servers: z.array(mcpServerStatus),
+  /** ChatGPT apps a Codex chat can use. */
+  apps: z.array(z.string()),
 });
 export type ChatMcp = z.infer<typeof chatMcp>;
 
@@ -47,9 +53,12 @@ export const ignoreServer = defineRpc({
   output: z.object({ ignored: z.array(z.string()) }),
 });
 
-/** Opens a terminal in the chat's workspace running `claude`, where `/mcp` can sign servers in. */
+/**
+ * Opens a terminal in the chat's workspace to sign in: `claude`, where `/mcp` signs servers in, or
+ * `codex mcp login <server>` for a Codex chat.
+ */
 export const openSignInTerminal = defineRpc({
   name: "mcp.sign-in",
-  input: agentRef,
+  input: agentRef.extend({ server: z.string().min(1).optional() }),
   output: z.object({ ok: z.literal(true) }),
 });

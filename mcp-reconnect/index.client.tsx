@@ -123,15 +123,15 @@ export default function contribute(client: PluginClientContext) {
           console.error("[mcp-reconnect] couldn't save the ignore", error),
         );
     },
-    signIn: async (agentId) => {
-      await client.rpc(openSignInTerminal, { agentId });
+    signIn: async (agentId, server) => {
+      await client.rpc(openSignInTerminal, { agentId, server });
     },
   };
 
   const removeCommand = client.addSlashCommand({
     name: "mcp-reconnect",
     description:
-      "Restart this chat's Claude process so every MCP server reconnects, then show what came back",
+      "Restart this chat's Claude or Codex process so every MCP server reconnects, then show what came back",
     argumentHint: "",
     context: "agent",
     // The pill above the composer shows progress and the result; the command returns at once.

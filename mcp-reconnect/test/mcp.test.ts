@@ -52,9 +52,11 @@ describe("pillText", () => {
   const chat = (servers: ChatMcp["servers"]): ChatMcp => ({
     agentId: "a",
     workspaceId: "w",
+    provider: "claude",
     source: "check",
     at: new Date().toISOString(),
     servers,
+    apps: [],
   });
   const notion = { name: "notion", state: "needs-auth" as const, detail: null };
   const aws = { name: "aws-mcp", state: "failed" as const, detail: "no creds" };
@@ -75,5 +77,12 @@ describe("pillText", () => {
     expect(
       pillText(chat([]), { kind: "done", at: Date.now() - 10 * 60_000, reopened: true }, new Set()),
     ).toBeNull();
+  });
+
+  it("doesn't call a restart done while servers are still coming up", () => {
+    const starting = { name: "playwright", state: "pending" as const, detail: null };
+    expect(
+      pillText(chat([starting]), { kind: "done", at: Date.now(), reopened: true }, new Set()),
+    ).toMatchObject({ label: "MCP …", title: "Still connecting: playwright" });
   });
 });

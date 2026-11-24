@@ -17,6 +17,16 @@ Chats whose MCP servers failed or need a sign-in get an **MCP** pill on their co
 
 Between checks, the pill follows what Claude records in the chat's transcript whenever its tools change: which servers are still connecting, need a sign-in or failed.
 
+## Codex chats
+
+Codex chats get the same pill. Codex records which servers' tools a chat has in its session log, but nothing about a server that failed, so the plugin compares that with the servers `codex mcp list` says are configured:
+
+- A server that isn't signed in **needs a sign-in**. Its **Sign in** link opens a terminal tab running `codex mcp login <server>`.
+- A server that never showed up, though Codex worked on a turn well past the server's startup timeout, **failed**.
+- Until then it's **not connected yet**. Codex only notes a server that came up late when the next message starts.
+
+**Reconnect** restarts the chat's Codex process. **Check again** reads the log and the sign-ins again; Codex can't be asked to connect without starting a thread. Codex never records a server dropping, so one that went down mid-chat still shows as connected. The popover also lists the ChatGPT apps the chat can use.
+
 ## Install
 
 Requires the Paseo desktop app, version 0.17 or later. Plugins are trusted, unsandboxed code, so read the source before installing.

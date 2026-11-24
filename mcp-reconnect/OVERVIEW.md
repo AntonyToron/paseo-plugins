@@ -8,3 +8,5 @@ Chats whose MCP servers failed or need a sign-in get an **MCP** pill on their co
 `/mcp-reconnect` in a chat does the same as Reconnect, with the pill showing progress and the result.
 
 Between checks, the pill follows what Claude records in the chat's transcript whenever its tools change: which servers are still connecting, need a sign-in or failed.
+
+Codex chats get the pill too. Their state comes from the chat's Codex session log and `codex mcp list`: a server that isn't signed in needs a sign-in (**Sign in** runs `codex mcp login <server>` in a terminal tab), and one that never came up past its startup timeout failed. Codex never records a server dropping, so one that went down mid-chat still shows as connected.

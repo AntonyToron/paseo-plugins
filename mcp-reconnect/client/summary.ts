@@ -60,6 +60,15 @@ export function pillText(
   if (activity?.kind === "done") {
     if (activity.reopened === false)
       return { label: "MCP ?", title: "The restart wasn't confirmed", icon: "Unplug" };
+    const starting = (chat?.servers ?? []).filter(
+      (server) => server.state === "pending" && !ignored.has(server.name),
+    );
+    if (starting.length)
+      return {
+        label: "MCP …",
+        title: `Still connecting: ${starting.map((server) => server.name).join(", ")}`,
+        icon: "RefreshCw",
+      };
     return {
       label: "MCP ✓",
       title: activity.reopened ? "Reconnected: every MCP server is up" : "Every MCP server is up",

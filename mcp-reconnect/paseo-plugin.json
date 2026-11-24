@@ -1,7 +1,7 @@
 {
   "id": "mcp-reconnect",
   "name": "MCP reconnect",
-  "description": "See which of a Claude chat's MCP servers are down or need a sign-in, and reconnect them with /mcp-reconnect, keeping the conversation.",
+  "description": "See which of a Claude or Codex chat's MCP servers are down or need a sign-in, and reconnect them with /mcp-reconnect, keeping the conversation.",
   "media": [],
   "requirements": {
     "paseo": ">=0.17.0"
